@@ -1,0 +1,2516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tanbuild</title>
+<style>
+  :root{
+    --bg: #1c1b19;
+    --bg-raised: #26241f;
+    --bg-card: #2e2b25;
+    --concrete: #8a8377;
+    --concrete-light: #b8b2a4;
+    --paper: #ece7dc;
+    --accent: #e8631c;
+    --accent-dim: #7a3a17;
+    --good: #6b9e5f;
+    --bad: #c1503f;
+    --line: #3c3830;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--paper);
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    overscroll-behavior:none;
+  }
+  #root{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;position:relative;}
+  ::selection{background:var(--accent);color:#1c1b19;}
+
+  @media print {
+    body{ background:#fff; color:#111; }
+    .no-print{ display:none !important; }
+    .print-title{ display:block !important; font-size:18px; font-weight:700; margin-bottom:16px; color:#111; }
+    #root{ max-width:none; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+  // Firebase is loaded here as a real ES module, then exposed on window
+  // so the React/Babel script below (which isn't a module) can use it.
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
+  import {
+    getFirestore, doc, getDoc, setDoc, onSnapshot
+  } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+
+  // ---- Fill this in with YOUR Firebase project config (see setup instructions) ----
+  const firebaseConfig = {
+    apiKey: "AIzaSyAJ-V9ZcrG8lVk7g75MtLXV6ifqVrDxJf0",
+    authDomain: "tanbuild-bb412.firebaseapp.com",
+    projectId: "tanbuild-bb412",
+    storageBucket: "tanbuild-bb412.firebasestorage.app",
+    messagingSenderId: "1085698328238",
+    appId: "1:1085698328238:web:503555ce4debd3412ecf3f"
+  };
+
+  let db = null;
+  let firebaseReady = false;
+  try{
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    firebaseReady = true;
+  }catch(e){
+    console.error('Firebase failed to initialize \u2014 app will use local storage only', e);
+  }
+
+  window.__firebase = {
+    ready: firebaseReady,
+    async getDoc(){
+      if(!firebaseReady) return null;
+      const ref = doc(db, 'tanbuild', 'state');
+      const snap = await getDoc(ref);
+      return snap.exists() ? snap.data() : null;
+    },
+    async setDoc(data){
+      if(!firebaseReady) throw new Error('Firebase not ready');
+      const ref = doc(db, 'tanbuild', 'state');
+      await setDoc(ref, data);
+    }
+  };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useMemo,useRef} = React;
+
+/* ============ SEED DATA (from Tanbuild_Operating_Book.xlsx) ============ */
+const SEED_ITEMS = [{"name": "Cement 42.5", "openingQty": 121, "openingPrice": 12.1}, {"name": "Cement 32.5", "openingQty": 0, "openingPrice": 11}, {"name": "Tilecoat sm", "openingQty": 0, "openingPrice": 0}, {"name": "Tilecoat bg", "openingQty": 0, "openingPrice": 0}, {"name": "Grout", "openingQty": 13, "openingPrice": 1.5}, {"name": "Rhinoset", "openingQty": 0, "openingPrice": 0}, {"name": "Impermo", "openingQty": 11, "openingPrice": 3.5}, {"name": "Impermo sm", "openingQty": 47, "openingPrice": 1}, {"name": "Air-vents", "openingQty": 116, "openingPrice": 0.4}, {"name": "Brickforce bg", "openingQty": 105, "openingPrice": 1}, {"name": "Brickforce sm", "openingQty": 137, "openingPrice": 1}, {"name": "DPC BG", "openingQty": 10, "openingPrice": 1.5}, {"name": "DPC SM", "openingQty": 38, "openingPrice": 1}, {"name": "Black sheet", "openingQty": 152, "openingPrice": 0.3}, {"name": "Mesh sm", "openingQty": 21, "openingPrice": 1.2}, {"name": "Mesh Bg", "openingQty": 0, "openingPrice": 0}, {"name": "Mesh md", "openingQty": 0, "openingPrice": 0}, {"name": "Irn float", "openingQty": 11, "openingPrice": 1.25}, {"name": "Plastic float", "openingQty": 2, "openingPrice": 1.2}, {"name": "Wood float", "openingQty": 26, "openingPrice": 1}, {"name": "Hook board", "openingQty": 3, "openingPrice": 1.2}, {"name": "Trawel big", "openingQty": 7, "openingPrice": 1.8}, {"name": "Trawel sm", "openingQty": 11, "openingPrice": 1.2}, {"name": "Spirit level bg", "openingQty": 2, "openingPrice": 2.8}, {"name": "Spirit level small", "openingQty": 7, "openingPrice": 2.2}, {"name": "Hammer bg", "openingQty": 6, "openingPrice": 2.2}, {"name": "Hammer sm", "openingQty": 6, "openingPrice": 2}, {"name": "Tap measure bg", "openingQty": 7, "openingPrice": 1.3}, {"name": "Tap measure med", "openingQty": 7, "openingPrice": 1}, {"name": "Tap measure small", "openingQty": 4, "openingPrice": 0.7}, {"name": "Peg stand", "openingQty": 30, "openingPrice": 0.45}, {"name": "Screwdriver set", "openingQty": 3, "openingPrice": 2.6}, {"name": "Screwdriver small", "openingQty": 22, "openingPrice": 0.25}, {"name": "Shavel", "openingQty": 4, "openingPrice": 4}, {"name": "Hacksaw", "openingQty": 3, "openingPrice": 1}, {"name": "Handsaw", "openingQty": 6, "openingPrice": 2.2}, {"name": "H. Blades", "openingQty": 17, "openingPrice": 0.1}, {"name": "Pliers", "openingQty": 11, "openingPrice": 2.2}, {"name": "Brush", "openingQty": 7, "openingPrice": 1}, {"name": "Y-Spanner", "openingQty": 3, "openingPrice": 0.52}, {"name": "Corner tool", "openingQty": 18, "openingPrice": 1.2}, {"name": "Fuse", "openingQty": 3, "openingPrice": 1}, {"name": "C.Disc", "openingQty": 1, "openingPrice": 1.5}, {"name": "Riverts", "openingQty": 1, "openingPrice": 1}, {"name": "D.Bit", "openingQty": 43, "openingPrice": 0.75}, {"name": "Screws", "openingQty": 1, "openingPrice": 2}, {"name": "Beam", "openingQty": 0, "openingPrice": 0}, {"name": "Wallplate", "openingQty": 0, "openingPrice": 0}, {"name": "bg Beam", "openingQty": 0, "openingPrice": 0}, {"name": "Roofing sheets", "openingQty": 0, "openingPrice": 6.25}, {"name": "Col sheets", "openingQty": 5, "openingPrice": 8.5}, {"name": "R. Nail", "openingQty": 13.5, "openingPrice": 2}, {"name": "Safetop", "openingQty": 10, "openingPrice": 2.5}, {"name": "Nails", "openingQty": 24, "openingPrice": 1.5}, {"name": "Tying wire", "openingQty": 27, "openingPrice": 0.6}, {"name": "Cabin nails Bg", "openingQty": 16, "openingPrice": 1.5}, {"name": "Cabin nails Sm", "openingQty": 0, "openingPrice": 1.8}, {"name": "Concrete nail", "openingQty": 8, "openingPrice": 1.8}, {"name": "U nail", "openingQty": 1, "openingPrice": 1.8}, {"name": "H clip", "openingQty": 54, "openingPrice": 0.1}, {"name": "Hinge", "openingQty": 74, "openingPrice": 0.4}, {"name": "V. Bolts", "openingQty": 0, "openingPrice": 0}, {"name": "Butt hinge", "openingQty": 0, "openingPrice": 0}, {"name": "Oxide", "openingQty": 0, "openingPrice": 0}, {"name": "Termite", "openingQty": 1, "openingPrice": 1}, {"name": "Carboliniem", "openingQty": 0, "openingPrice": 0}, {"name": "A Adhesive", "openingQty": 0, "openingPrice": 0}, {"name": "Crack filler", "openingQty": 9, "openingPrice": 0.5}, {"name": "S. Eater", "openingQty": 0, "openingPrice": 0}, {"name": "B Acid", "openingQty": 0, "openingPrice": 0}, {"name": "Bitumen putty", "openingQty": 7, "openingPrice": 1}, {"name": "R seal", "openingQty": 4, "openingPrice": 1}, {"name": "Putty", "openingQty": 0, "openingPrice": 0}, {"name": "Epoxy", "openingQty": 18, "openingPrice": 0.4}, {"name": "S Glue", "openingQty": 33, "openingPrice": 0.2}, {"name": "Gloves", "openingQty": 24, "openingPrice": 1}, {"name": "M seal", "openingQty": 13, "openingPrice": 0.2}, {"name": "Ratchet", "openingQty": 2, "openingPrice": 3}, {"name": "Door Z", "openingQty": 9, "openingPrice": 15.5}, {"name": "Door frame bg", "openingQty": 4, "openingPrice": 15}, {"name": "Door frame sm", "openingQty": 13, "openingPrice": 10}, {"name": "Windowfram 1 pan", "openingQty": 1, "openingPrice": 8}, {"name": "3 pan", "openingQty": 5, "openingPrice": 9}, {"name": "6 pan", "openingQty": 4, "openingPrice": 13.5}, {"name": "NC2", "openingQty": 5, "openingPrice": 14}, {"name": "ND2", "openingQty": 5, "openingPrice": 20}, {"name": "ND4", "openingQty": 4, "openingPrice": 30}, {"name": "W handle", "openingQty": 42, "openingPrice": 0.5}, {"name": "Rope blue", "openingQty": 1, "openingPrice": 3}, {"name": "Rope white", "openingQty": 35, "openingPrice": 0.6}, {"name": "Padlocks meco", "openingQty": 3, "openingPrice": 2.5}, {"name": "Gainstar padlock", "openingQty": 4, "openingPrice": 5}, {"name": "Locks silver bg", "openingQty": 1, "openingPrice": 1.5}, {"name": "Brass key big", "openingQty": 0, "openingPrice": 0}, {"name": "Brass key small", "openingQty": 3, "openingPrice": 1}, {"name": "Solix sm", "openingQty": 7, "openingPrice": 0.67}, {"name": "Solix md", "openingQty": 9, "openingPrice": 0.67}, {"name": "Solix big", "openingQty": 3, "openingPrice": 0.67}, {"name": "Zvihuri homemade", "openingQty": 0, "openingPrice": 0}, {"name": "Hoop irn", "openingQty": 8, "openingPrice": 1}, {"name": "Insulin tape", "openingQty": 0, "openingPrice": 0}, {"name": "Led light bg", "openingQty": 5, "openingPrice": 1.2}, {"name": "Led light small", "openingQty": 1, "openingPrice": 0.7}, {"name": "Conduit pipe", "openingQty": 0, "openingPrice": 0}, {"name": "Couplings", "openingQty": 217, "openingPrice": 0.05}, {"name": "Umbrella", "openingQty": 2, "openingPrice": 2}, {"name": "Yellow padlock", "openingQty": 10, "openingPrice": 4}, {"name": "Safedor padlock", "openingQty": 8, "openingPrice": 4}, {"name": "NC4", "openingQty": 6, "openingPrice": 18}, {"name": "Flush door", "openingQty": 0, "openingPrice": 0}, {"name": "White Door", "openingQty": 4, "openingPrice": 24}, {"name": "Alarm key ", "openingQty": 2, "openingPrice": 2.5}, {"name": "zvihuri bg", "openingQty": 0, "openingPrice": 0}, {"name": "zvihuri md ", "openingQty": 0, "openingPrice": 0}, {"name": "zvihuri sm", "openingQty": 5, "openingPrice": 0.7}, {"name": "Links Bg ", "openingQty": 0, "openingPrice": 0}, {"name": "Links Sm", "openingQty": 0, "openingPrice": 0}, {"name": "42,5 R cem", "openingQty": 0, "openingPrice": 0}, {"name": "Belt", "openingQty": 0, "openingPrice": 1.125}, {"name": "straight edge", "openingQty": 0, "openingPrice": 3}, {"name": "thread tape", "openingQty": 0, "openingPrice": 0.045}, {"name": "Metaldoor", "openingQty": 0, "openingPrice": 53}, {"name": "Tap Plastic Bg", "openingQty": 0, "openingPrice": 0.5}, {"name": "Tap Plastic Sm", "openingQty": 0, "openingPrice": 0.5}, {"name": "Tap Metal Bg", "openingQty": 0, "openingPrice": 1.6}, {"name": "Tap Metal Sm", "openingQty": 0, "openingPrice": 1.25}, {"name": "Expansion screws", "openingQty": 0, "openingPrice": 0.85}, {"name": "colour sheets sm", "openingQty": 0, "openingPrice": 6.1}, {"name": "SA qadloc", "openingQty": 0, "openingPrice": 1.8}, {"name": "110 waste", "openingQty": 0, "openingPrice": 7.5}, {"name": "110  qlan ", "openingQty": 0, "openingPrice": 7.5}, {"name": "T Bend ", "openingQty": 0, "openingPrice": 2}, {"name": "90 bend", "openingQty": 0, "openingPrice": 2}];
+const SEED_BATCHES = [{"date": "2026-01-03", "item": "Roofing sheets", "qty": 75, "price": 6.25}, {"date": "2026-01-03", "item": "Col sheets", "qty": 30, "price": 8.5}, {"date": "2026-01-10", "item": "Termite", "qty": 12, "price": 1.5}, {"date": "2026-01-10", "item": "Impermo sm", "qty": 27, "price": 1}, {"date": "2026-01-10", "item": "Screwdriver small", "qty": 6, "price": 0}, {"date": "2026-01-11", "item": "Cement 42.5", "qty": 60, "price": 12}, {"date": "2026-01-14", "item": "Black sheet", "qty": 100, "price": 0.35}, {"date": "2026-01-18", "item": "Impermo sm", "qty": 60, "price": 1}, {"date": "2026-01-19", "item": "Links Bg ", "qty": 65, "price": 0.4}, {"date": "2026-01-19", "item": "Links Sm", "qty": 17, "price": 0.4}, {"date": "2026-01-20", "item": "Cement 42.5", "qty": 90, "price": 11.5}, {"date": "2026-01-21", "item": "Roofing sheets", "qty": 70, "price": 6}, {"date": "2026-01-21", "item": "Cabin nails Sm", "qty": 25, "price": 1.8}, {"date": "2026-01-24", "item": "42,5 R cem", "qty": 304, "price": 10.8}, {"date": "2026-01-28", "item": "Cement 32.5", "qty": 30, "price": 10}, {"date": "2026-01-28", "item": "Door Z", "qty": 10, "price": 15.5}, {"date": "2026-01-30", "item": "Brickforce sm", "qty": 20, "price": 0.9}, {"date": "2026-01-30", "item": "Brickforce bg", "qty": 100, "price": 0.9}, {"date": "2026-02-05", "item": "Cement 42.5", "qty": 30, "price": 12}, {"date": "2026-02-06", "item": "6 pan", "qty": 3, "price": 13}, {"date": "2026-02-06", "item": "D.Bit", "qty": 10, "price": 4}, {"date": "2026-02-07", "item": "Tying wire", "qty": 120, "price": 0.55}, {"date": "2026-02-17", "item": "Roofing sheets", "qty": 80, "price": 6}, {"date": "2026-02-17", "item": "R. Nail", "qty": 25, "price": 2}, {"date": "2026-02-22", "item": "Handsaw", "qty": 5, "price": 3}, {"date": "2026-02-22", "item": "Gloves", "qty": 24, "price": 1}, {"date": "2026-02-22", "item": "Belt", "qty": 5, "price": 1.8}, {"date": "2026-02-22", "item": "Insulin tape", "qty": 20, "price": 0.1}, {"date": "2026-02-22", "item": "straight edge", "qty": 3, "price": 4}, {"date": "2026-02-22", "item": "C.Disc", "qty": 6, "price": 1}, {"date": "2026-02-22", "item": "Concrete nail", "qty": 4, "price": 1.8}, {"date": "2026-02-22", "item": "Trawel sm", "qty": 12, "price": 0.8}, {"date": "2026-02-22", "item": "zvihuri sm", "qty": 12, "price": 0.6}, {"date": "2026-02-22", "item": "thread tape", "qty": 10, "price": 0.09}, {"date": "2026-02-25", "item": "6 pan", "qty": 10, "price": 12}, {"date": "2026-02-25", "item": "Windowfram 1 pan", "qty": 5, "price": 7}, {"date": "2026-02-25", "item": "Door frame bg", "qty": 5, "price": 15}, {"date": "2026-02-25", "item": "Door frame sm", "qty": 5, "price": 10}, {"date": "2026-02-25", "item": "Metaldoor", "qty": 2, "price": 53}, {"date": "2026-02-26", "item": "Cement 42.5", "qty": 100, "price": 11.3}, {"date": "2026-03-03", "item": "Termite", "qty": 12, "price": 1.5}, {"date": "2026-03-05", "item": "Spirit level small", "qty": 4, "price": 2.2}, {"date": "2026-03-05", "item": "Mesh md", "qty": 30, "price": 0.53}, {"date": "2026-03-05", "item": "Mesh sm", "qty": 60, "price": 0.384}, {"date": "2026-03-05", "item": "Hinge", "qty": 150, "price": 0.3}, {"date": "2026-03-05", "item": "Hacksaw", "qty": 3, "price": 0.9}, {"date": "2026-03-05", "item": "Gainstar padlock", "qty": 10, "price": 4}, {"date": "2026-03-05", "item": "Solix sm", "qty": 8, "price": 0.6}, {"date": "2026-03-05", "item": "Solix md", "qty": 8, "price": 0.6}, {"date": "2026-03-05", "item": "Solix big", "qty": 8, "price": 0.6}, {"date": "2026-05-03", "item": "Padlocks meco", "qty": 6, "price": 2.5}, {"date": "2026-03-05", "item": "zvihuri md ", "qty": 24, "price": 0.7}, {"date": "2026-03-05", "item": "Concrete nail", "qty": 3, "price": 1.8}, {"date": "2026-03-05", "item": "Brass key big", "qty": 6, "price": 1.9}, {"date": "2026-03-05", "item": "Brass key small", "qty": 6, "price": 1.6}, {"date": "2026-03-05", "item": "Tap Plastic Bg", "qty": 5, "price": 0.5}, {"date": "2026-03-05", "item": "Tap Metal Bg", "qty": 5, "price": 1.6}, {"date": "2026-03-05", "item": "Tap Metal Sm", "qty": 10, "price": 1.25}, {"date": "2026-03-05", "item": "Tap Plastic Sm", "qty": 10, "price": 0.5}, {"date": "2026-03-05", "item": "Expansion screws", "qty": 5, "price": 0.85}, {"date": "2026-03-06", "item": "Air-vents", "qty": 150, "price": 0.5}, {"date": "2026-03-07", "item": "Black sheet", "qty": 200, "price": 0.35}, {"date": "2026-03-09", "item": "Termite", "qty": 24, "price": 1.5}, {"date": "2026-03-11", "item": "Roofing sheets", "qty": 80, "price": 6}, {"date": "2026-03-11", "item": "Brickforce bg", "qty": 70, "price": 0.9}, {"date": "2026-03-11", "item": "Brickforce sm", "qty": 180, "price": 0.9}, {"date": "2026-03-11", "item": "Safedor padlock", "qty": 10, "price": 4.3}, {"date": "2026-03-11", "item": "DPC BG", "qty": 40, "price": 1.5}, {"date": "2026-03-11", "item": "DPC SM", "qty": 40, "price": 0.875}, {"date": "2026-03-12", "item": "Cement 32.5", "qty": 30, "price": 10.5}, {"date": "2026-03-18", "item": "Cement 42.5", "qty": 100, "price": 11}, {"date": "2026-03-18", "item": "Roofing sheets", "qty": 50, "price": 6}, {"date": "2026-03-18", "item": "colour sheets sm", "qty": 50, "price": 6.1}, {"date": "2026-03-18", "item": "R. Nail", "qty": 25, "price": 2}, {"date": "2026-03-25", "item": "Cabin nails Sm", "qty": 25, "price": 1.5}, {"date": "2026-03-25", "item": "Cement 42.5", "qty": 30, "price": 11.5}, {"date": "2026-03-25", "item": "Black sheet", "qty": 200, "price": 0.33}, {"date": "2026-03-28", "item": "Cement 42.5", "qty": 150, "price": 11.1}, {"date": "2026-03-30", "item": "110 waste", "qty": 30, "price": 1.25}, {"date": "2026-03-30", "item": "110  qlan ", "qty": 30, "price": 1.25}, {"date": "2026-03-30", "item": "T Bend ", "qty": 4, "price": 2}, {"date": "2026-03-30", "item": "90 bend", "qty": 5, "price": 2}, {"date": "2026-04-02", "item": "Concrete nail", "qty": 24, "price": 1.8}, {"date": "2026-04-02", "item": "Peg stand", "qty": 24, "price": 0.5}, {"date": "2026-04-02", "item": "W handle", "qty": 24, "price": 0.5}, {"date": "2026-04-02", "item": "Hook board", "qty": 6, "price": 2}, {"date": "2026-04-02", "item": "Irn float", "qty": 12, "price": 1}, {"date": "2026-04-02", "item": "Shavel", "qty": 6, "price": 4.5}, {"date": "2026-04-02", "item": "Gloves", "qty": 24, "price": 1}, {"date": "2026-04-02", "item": "SA qadloc", "qty": 12, "price": 1.8}, {"date": "2026-04-02", "item": "Roofing sheets", "qty": 50, "price": 6}, {"date": "2026-04-04", "item": "Cement 42.5", "qty": 160, "price": 11.1}, {"date": "2026-04-16", "item": "Windowfram 1 pan", "qty": 5, "price": 7}, {"date": "2026-04-16", "item": "3 pan", "qty": 5, "price": 9}, {"date": "2026-04-16", "item": "6 pan", "qty": 10, "price": 12.5}, {"date": "2026-04-16", "item": "ND2", "qty": 5, "price": 20}, {"date": "2026-04-16", "item": "ND4", "qty": 5, "price": 30}, {"date": "2026-04-16", "item": "NC4", "qty": 3, "price": 18}, {"date": "2026-04-16", "item": "Door frame bg", "qty": 8, "price": 15}, {"date": "2026-04-16", "item": "Door frame sm", "qty": 12, "price": 10}, {"date": "2026-04-16", "item": "Metaldoor", "qty": 3, "price": 55}, {"date": "2026-04-22", "item": "Cement 42.5", "qty": 33, "price": 12}, {"date": "2026-04-26", "item": "Cement 42.5", "qty": 150, "price": 11.6}, {"date": "2026-04-26", "item": "Black sheet", "qty": 200, "price": 0.35}, {"date": "2026-05-01", "item": "Termite", "qty": 20, "price": 1.5}, {"date": "2026-05-01", "item": "Impermo sm", "qty": 25, "price": 1.2}, {"date": "2026-05-06", "item": "Cement 42.5", "qty": 272, "price": 11.6}];
+const SEED_AGENTS = ["MaiMumu", "Elphas", "Hazel", "Tanaka", "Charmane", "Hugh", "Mhamha", "Dad", "Other"];
+
+/* ============ STORAGE HELPERS ============ */
+const LOCAL_KEY = 'tanbuild-state-v1';
+
+function waitForFirebase(timeoutMs){
+  return new Promise((resolve) => {
+    if(window.__firebase){ resolve(); return; }
+    const onReady = () => { window.removeEventListener('firebase-ready', onReady); resolve(); };
+    window.addEventListener('firebase-ready', onReady);
+    setTimeout(() => { window.removeEventListener('firebase-ready', onReady); resolve(); }, timeoutMs);
+  });
+}
+
+async function loadState(){
+  await waitForFirebase(4000);
+
+  // Prefer Firebase (shared across devices) when it's genuinely configured and reachable
+  if(window.__firebase && window.__firebase.ready){
+    try{
+      const data = await window.__firebase.getDoc();
+      if(data && data.stateJson) return JSON.parse(data.stateJson);
+    }catch(e){ console.error('Firebase load failed, falling back to localStorage', e); }
+  }
+
+  // Fallback: browser localStorage (works offline, or if Firebase isn't set up/reachable)
+  try{
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* no data yet, or localStorage unavailable */ }
+  return null;
+}
+
+async function saveState(state){
+  let savedRemotely = false;
+  let savedLocally = false;
+
+  if(window.__firebase && window.__firebase.ready){
+    try{
+      await window.__firebase.setDoc({ stateJson: JSON.stringify(state), updatedAt: new Date().toISOString() });
+      savedRemotely = true;
+    }catch(e){ console.error('Firebase save failed, falling back to localStorage', e); }
+  }
+
+  // Always also save to localStorage - works offline, and is a safety net
+  // even when Firebase is reachable, in case of an interrupted connection.
+  try{
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(state));
+    savedLocally = true;
+  }catch(e){ console.error('localStorage save failed', e); }
+
+  return savedRemotely || savedLocally;
+}
+
+function initialState(){
+  return {
+    items: SEED_ITEMS.map(i=>({...i})),
+    batches: SEED_BATCHES.map(b=>({...b})),
+    sales: [],       // {id, date, item, qty, price, agent, fifoPrice, grossProfit}
+    agents: SEED_AGENTS.slice(),
+    expenses: [],    // {id, date, description, accountType, amount, notes}
+    capital: 0,      // owner's capital contributed - manual entry, like the Excel Balance Sheet
+    cashOpeningBalances: {}, // {"2026-01": 500, ...}
+    ledger: [],      // {id, date, type: 'payable'|'receivable', name, amount, status: 'open'|'settled', settledDate}
+    staff: [],       // {id, name, role, wage, frequency: 'daily'|'weekly'|'monthly'|'variable'}
+    payroll: [],     // {id, date, staffId, staffName, amount, notes, expenseId}
+    stockAdjustments: [], // {id, date, item, qty, reason, notes, fifoPrice, fifoLayer, costValue}
+    drawings: [],    // {id, date, amount, notes} - owner withdrawals, not an expense
+  };
+}
+
+const EXPENSE_TYPES = ['Rent','Salaries','Utilities','Transport','Repairs','Stationery','Stock loss','Other'];
+
+/* ============ FIFO ENGINE ============
+   Mirrors the Excel logic: opening stock is consumed first (at openingPrice),
+   then purchase batches in date order. Each sale looks at how much of that
+   item has already been sold (including itself), and finds which layer(s)
+   that quantity range falls into.
+*/
+// If an item has an openingAsOf date (set when its opening quantity was last
+// manually corrected, e.g. after a physical recount), everything dated on or
+// before that date is historical only - it must not be double-counted on top
+// of the corrected opening quantity. Only activity strictly AFTER that date
+// still stacks on top of the opening layer.
+function afterOpeningCutover(state, itemName, dateStr){
+  const item = state.items.find(i=>i.name===itemName);
+  const cutover = item ? item.openingAsOf : null;
+  if(!cutover) return true; // no cutover set - include everything, same as before
+  return dateStr > cutover;
+}
+
+function computeFifoForSale(state, item, saleDate, qty, excludeSaleId){
+  const openingQty = (state.items.find(i=>i.name===item) || {openingQty:0}).openingQty || 0;
+  const openingPrice = (state.items.find(i=>i.name===item) || {openingPrice:0}).openingPrice || 0;
+
+  // all prior sales of this item (cash register order = date then insertion order), excluding the one being computed
+  const priorSales = state.sales
+    .filter(s => s.item===item && s.id!==excludeSaleId)
+    .filter(s => s.date < saleDate || (s.date===saleDate)) // same/earlier date
+    .filter(s => afterOpeningCutover(state, item, s.date))
+    .map(s => ({ date:s.date, seq:s.seq, qty:s.qty }));
+
+  // stock losses (damage/theft/etc) also consume the same FIFO layers as sales,
+  // so they must count toward "already consumed" or a sale after a loss would
+  // incorrectly price from a cheaper/earlier layer than what's actually left.
+  const priorLosses = (state.stockAdjustments||[])
+    .filter(a => a.item===item)
+    .filter(a => a.date <= saleDate)
+    .filter(a => afterOpeningCutover(state, item, a.date))
+    .map(a => ({ date:a.date, seq:a.seq||0, qty:a.qty }));
+
+  const priorConsumption = [...priorSales, ...priorLosses]
+    .sort((a,b)=> (a.date<b.date?-1:a.date>b.date?1:a.seq-b.seq));
+
+  // cumulative consumed up to (not including) this sale
+  let cumBefore = 0;
+  for(const c of priorConsumption){ cumBefore += c.qty; }
+  const cumAfter = cumBefore + qty;
+
+  // batches for this item, sorted by date - only those after the opening cutover count
+  const batches = state.batches
+    .filter(b=>b.item===item)
+    .filter(b=>afterOpeningCutover(state, item, b.date))
+    .sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0);
+
+  let running = openingQty;
+  const layers = [{ label:'Opening stock', start:0, end:openingQty, price:openingPrice }];
+  for(const b of batches){
+    layers.push({ label:`Purchased ${b.date}`, start:running, end:running+b.qty, price:b.price });
+    running += b.qty;
+  }
+
+  // find which layer the midpoint of [cumBefore, cumAfter) falls into (use start point, matching Excel's per-unit logic)
+  let chosenLayer = null;
+  for(const layer of layers){
+    if(cumAfter > layer.start && cumAfter <= layer.end){ chosenLayer = layer; break; }
+    if(layer.end === 0 && cumAfter <= 0){ chosenLayer = layer; break; }
+  }
+  if(!chosenLayer){
+    // ran past all known layers -> fallback to last known price, or opening price
+    chosenLayer = layers[layers.length-1] || {label:'Fallback', price: openingPrice};
+  }
+
+  return { price: chosenLayer.price, layerLabel: chosenLayer.label };
+}
+
+// Same FIFO layer logic as computeFifoForSale, but for stock losses (damage/theft/etc).
+// Crucially, this must account for BOTH prior sales AND prior losses of the same item,
+// since both consume stock from the same FIFO layers - a loss logged after a sale
+// should price from whatever layer is next in line, not restart from the beginning.
+function computeFifoForLoss(state, item, lossDate, qty, excludeAdjustmentId){
+  const openingQty = (state.items.find(i=>i.name===item) || {openingQty:0}).openingQty || 0;
+  const openingPrice = (state.items.find(i=>i.name===item) || {openingPrice:0}).openingPrice || 0;
+
+  const priorSales = state.sales
+    .filter(s => s.item===item)
+    .filter(s => s.date <= lossDate)
+    .filter(s => afterOpeningCutover(state, item, s.date))
+    .map(s => ({ date:s.date, seq:s.seq, qty:s.qty, kind:'sale' }));
+
+  const priorLosses = (state.stockAdjustments||[])
+    .filter(a => a.item===item && a.id!==excludeAdjustmentId)
+    .filter(a => a.date <= lossDate)
+    .filter(a => afterOpeningCutover(state, item, a.date))
+    .map(a => ({ date:a.date, seq:a.seq||0, qty:a.qty, kind:'loss' }));
+
+  const priorConsumption = [...priorSales, ...priorLosses]
+    .sort((a,b)=> (a.date<b.date?-1:a.date>b.date?1:a.seq-b.seq));
+
+  let cumBefore = 0;
+  for(const c of priorConsumption){ cumBefore += c.qty; }
+  const cumAfter = cumBefore + qty;
+
+  const batches = state.batches
+    .filter(b=>b.item===item)
+    .filter(b=>afterOpeningCutover(state, item, b.date))
+    .sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0);
+
+  let running = openingQty;
+  const layers = [{ label:'Opening stock', start:0, end:openingQty, price:openingPrice }];
+  for(const b of batches){
+    layers.push({ label:`Purchased ${b.date}`, start:running, end:running+b.qty, price:b.price });
+    running += b.qty;
+  }
+
+  let chosenLayer = null;
+  for(const layer of layers){
+    if(cumAfter > layer.start && cumAfter <= layer.end){ chosenLayer = layer; break; }
+    if(layer.end === 0 && cumAfter <= 0){ chosenLayer = layer; break; }
+  }
+  if(!chosenLayer){ chosenLayer = layers[layers.length-1] || {label:'Fallback', price: openingPrice}; }
+
+  return { price: chosenLayer.price, layerLabel: chosenLayer.label };
+}
+
+function remainingStock(state, itemName){
+  const item = state.items.find(i=>i.name===itemName);
+  const opening = item ? item.openingQty : 0;
+  const purchased = state.batches.filter(b=>b.item===itemName).filter(b=>afterOpeningCutover(state,itemName,b.date)).reduce((a,b)=>a+b.qty,0);
+  const sold = state.sales.filter(s=>s.item===itemName).filter(s=>afterOpeningCutover(state,itemName,s.date)).reduce((a,s)=>a+s.qty,0);
+  const lost = (state.stockAdjustments||[]).filter(a=>a.item===itemName).filter(a=>afterOpeningCutover(state,itemName,a.date)).reduce((a,adj)=>a+adj.qty,0);
+  return opening + purchased - sold - lost;
+}
+
+// After editing or deleting a sale, every other sale of the SAME item may now have
+// a different FIFO cost basis, since FIFO depends on the order and quantity of
+// everything sold before it. This recomputes fifoPrice/grossProfit for all sales
+// of that item, in their correct date+seq order, so nothing is left stale.
+function recomputeItemFifo(state, itemName){
+  const itemSales = state.sales
+    .filter(s=>s.item===itemName)
+    .sort((a,b)=> (a.date<b.date?-1:a.date>b.date?1:a.seq-b.seq));
+
+  // build up a running state as if each sale were being added fresh, in order,
+  // so computeFifoForSale sees only the sales that come "before" it
+  let runningSales = [];
+  const updates = {};
+  for(const s of itemSales){
+    const scopedState = {...state, sales: runningSales};
+    const fifo = computeFifoForSale(scopedState, itemName, s.date, s.qty, null);
+    const newFifoPrice = Math.round(fifo.price*100)/100;
+    const newGrossProfit = Math.round((s.price - fifo.price) * s.qty * 100)/100;
+    updates[s.id] = { fifoPrice:newFifoPrice, fifoLayer:fifo.layerLabel, grossProfit:newGrossProfit };
+    runningSales = [...runningSales, s];
+  }
+  return state.sales.map(s => updates[s.id] ? {...s, ...updates[s.id]} : s);
+}
+
+// FIFO inventory value: walk through layers (opening stock, then purchase batches
+// in date order) and figure out which units are still unsold, valuing each
+// remaining unit at the price of the layer it belongs to.
+function fifoStockValue(state, itemName){
+  const item = state.items.find(i=>i.name===itemName);
+  const openingQty = item ? item.openingQty : 0;
+  const openingPrice = item ? item.openingPrice : 0;
+  const totalSold = state.sales.filter(s=>s.item===itemName).filter(s=>afterOpeningCutover(state,itemName,s.date)).reduce((a,s)=>a+s.qty,0);
+  const totalLost = (state.stockAdjustments||[]).filter(a=>a.item===itemName).filter(a=>afterOpeningCutover(state,itemName,a.date)).reduce((a,adj)=>a+adj.qty,0);
+
+  const batches = state.batches.filter(b=>b.item===itemName).filter(b=>afterOpeningCutover(state,itemName,b.date)).sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0);
+  const layers = [{ qty: openingQty, price: openingPrice }, ...batches.map(b=>({qty:b.qty, price:b.price}))];
+
+  // consume from the front (oldest first) using totalSold + totalLost combined,
+  // since both sales and losses draw down the same FIFO layers
+  let toConsume = totalSold + totalLost;
+  let value = 0;
+  let qtyLeft = 0;
+  for(const layer of layers){
+    const consumedHere = Math.min(toConsume, layer.qty);
+    const remainingHere = layer.qty - consumedHere;
+    value += remainingHere * layer.price;
+    qtyLeft += remainingHere;
+    toConsume -= consumedHere;
+  }
+  // if toConsume > 0 still, more was sold/lost than ever recorded as purchased (data gap / negative stock) - value floors at 0 for those excess units
+  return { qty: qtyLeft, value: Math.round(value*100)/100 };
+}
+
+/* ============ UI COMPONENTS ============ */
+
+function TopBar({tab,onBackupClick}){
+  const titles = {sales:'Add a sale', history:'Today\u2019s sales', stock:'Stock levels', newstock:'Add stock', expenses:'Log an expense', loss:'Damage & loss', ledger:'Money owed', hr:'Staff & wages', health:'Business health'};
+  const [synced,setSynced] = useState(null); // null=checking, true=synced, false=local only
+  useEffect(()=>{
+    let cancelled = false;
+    waitForFirebase(4000).then(()=>{
+      if(!cancelled) setSynced(!!(window.__firebase && window.__firebase.ready));
+    });
+    return ()=>{ cancelled = true; };
+  },[]);
+  return (
+    <div style={{padding:'22px 20px 14px', background:'var(--bg)'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+          <span style={{fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",fontWeight:700,fontSize:22,letterSpacing:'-0.02em'}}>Tanbuild</span>
+          <span style={{width:6,height:6,borderRadius:99,background:'var(--accent)',display:'inline-block'}}></span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <span style={{fontSize:11,color: synced===null?'var(--concrete)':synced?'var(--good)':'var(--concrete-light)'}}>
+            {synced===null ? 'Checking\u2026' : synced ? '\u2713 Synced' : 'Local only'}
+          </span>
+          <span onClick={onBackupClick} style={{fontSize:12,color:'var(--concrete-light)',cursor:'pointer',textDecoration:'underline'}}>Backup</span>
+        </div>
+      </div>
+      <div style={{color:'var(--concrete-light)',fontSize:14,marginTop:2}}>{titles[tab]}</div>
+    </div>
+  );
+}
+
+function Field({label, children}){
+  return (
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6,fontWeight:600}}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+const inputStyle = {
+  width:'100%', padding:'14px 14px', borderRadius:10, border:'1px solid var(--line)',
+  background:'var(--bg-raised)', color:'var(--paper)', fontSize:16, fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",
+  outline:'none'
+};
+
+function AutocompleteInput({value, onChange, options, placeholder}){
+  const [open,setOpen] = useState(false);
+  const [query,setQuery] = useState(value||'');
+  const wrapRef = useRef(null);
+
+  useEffect(()=>{ setQuery(value||''); },[value]);
+
+  const filtered = useMemo(()=>{
+    const sorted = [...options].sort((a,b)=>a.localeCompare(b));
+    if(!query) return sorted;
+    const q = query.toLowerCase();
+    return sorted.filter(o=>o.toLowerCase().includes(q));
+  },[query,options]);
+
+  useEffect(()=>{
+    function handleClick(e){
+      if(wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown',handleClick);
+    document.addEventListener('touchstart',handleClick);
+    return ()=>{
+      document.removeEventListener('mousedown',handleClick);
+      document.removeEventListener('touchstart',handleClick);
+    };
+  },[]);
+
+  return (
+    <div ref={wrapRef} style={{position:'relative'}}>
+      <input
+        style={inputStyle}
+        value={query}
+        placeholder={placeholder}
+        onFocus={()=>setOpen(true)}
+        onChange={e=>{ setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
+      />
+      {open && filtered.length>0 && (
+        <div style={{
+          position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:20,
+          background:'var(--bg-card)', border:'1px solid var(--line)', borderRadius:10,
+          maxHeight:220, overflowY:'auto', boxShadow:'0 8px 24px rgba(0,0,0,0.4)'
+        }}>
+          {filtered.map(opt=>(
+            <div key={opt}
+              onClick={()=>{ onChange(opt); setQuery(opt); setOpen(false); }}
+              style={{padding:'12px 14px', fontSize:15, borderBottom:'1px solid var(--line)', cursor:'pointer'}}
+              onTouchStart={e=>e.currentTarget.style.background='var(--bg-raised)'}
+            >{opt}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PillSelect({value,onChange,options}){
+  return (
+    <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+      {options.map(opt=>{
+        const active = value===opt;
+        return (
+          <button key={opt} onClick={()=>onChange(opt)}
+            style={{
+              padding:'10px 14px', borderRadius:99, border:active?'1px solid var(--accent)':'1px solid var(--line)',
+              background: active? 'var(--accent)':'var(--bg-raised)',
+              color: active? '#1c1b19':'var(--paper)',
+              fontSize:14, fontWeight:600, cursor:'pointer'
+            }}>{opt}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function emptyRow(){ return { key: 'row_'+Date.now()+'_'+Math.random(), item:'', qty:'', price:'' }; }
+
+function SalesTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [date,setDate] = useState(today);
+  const [rows,setRows] = useState([emptyRow()]);
+  const [agent,setAgent] = useState('');
+  const [manageAgents,setManageAgents] = useState(false);
+  const [editingAgent,setEditingAgent] = useState(null);
+  const [newAgentName,setNewAgentName] = useState('');
+  const [addAgentName,setAddAgentName] = useState('');
+  const [paymentStatus,setPaymentStatus] = useState('paid'); // 'paid' | 'credit'
+  const [customerName,setCustomerName] = useState('');
+
+  const itemNames = useMemo(()=>state.items.map(i=>i.name),[state.items]);
+
+  function reset(keepDate){
+    setRows([emptyRow()]); setAgent(''); setPaymentStatus('paid'); setCustomerName('');
+    if(!keepDate) setDate(today);
+  }
+
+  function updateRow(key, field, value){
+    setRows(rows.map(r=> r.key===key ? {...r, [field]:value} : r));
+  }
+  function addRow(){
+    setRows([...rows, emptyRow()]);
+  }
+  function removeRow(key){
+    if(rows.length===1){ setRows([emptyRow()]); return; }
+    setRows(rows.filter(r=>r.key!==key));
+  }
+
+  function submit(){
+    // validate every row first, before writing anything
+    for(const r of rows){
+      if(!r.item){ toast('Every row needs an item.','bad'); return; }
+      if(!state.items.some(i=>i.name===r.item)){ toast(`"${r.item}" isn\u2019t in your stock list. Add it via Buy stock first.`,'bad'); return; }
+      if(!r.qty || Number(r.qty)<=0){ toast('Every row needs a quantity greater than 0.','bad'); return; }
+      if(!r.price || Number(r.price)<=0){ toast('Every row needs a price greater than 0.','bad'); return; }
+    }
+    if(!agent){ toast('Choose who made the sale.','bad'); return; }
+    if(paymentStatus==='credit' && !customerName.trim()){ toast('Enter the customer\u2019s name for a credit sale.','bad'); return; }
+
+    // build sales one row at a time, feeding each into a running state so that
+    // if the same item appears twice in this batch, the second row's FIFO price
+    // correctly accounts for the first row already being "sold"
+    let runningState = state;
+    const newSales = [];
+    for(const r of rows){
+      const seq = runningState.sales.length;
+      const tempId = 'sale_'+Date.now()+'_'+seq+'_'+Math.random().toString(36).slice(2,7);
+      const q = Number(r.qty), p = Number(r.price);
+      const fifo = computeFifoForSale(runningState, r.item, date, q, null);
+      const grossProfit = (p - fifo.price) * q;
+      const newSale = {
+        id: tempId, seq, date, item:r.item, qty:q, price:p, agent,
+        fifoPrice: Math.round(fifo.price*100)/100,
+        fifoLayer: fifo.layerLabel,
+        grossProfit: Math.round(grossProfit*100)/100,
+        paymentStatus, // 'paid' | 'credit' - determines whether Cash Flow counts this immediately
+        ledgerId: null // filled in below if this sale creates a receivable
+      };
+      newSales.push(newSale);
+      runningState = {...runningState, sales:[...runningState.sales, newSale]};
+    }
+
+    let nextLedger = state.ledger || [];
+    if(paymentStatus==='credit'){
+      // one combined receivable for the whole multi-item sale, linked to every row
+      const totalAmount = newSales.reduce((a,s)=>a+s.qty*s.price,0);
+      const ledgerId = 'ledger_'+Date.now();
+      nextLedger = [...nextLedger, {
+        id: ledgerId, date, type:'receivable', name:customerName.trim(),
+        item: newSales.map(s=>`${s.qty}\u00d7${s.item}`).join(', '),
+        amount: Math.round(totalAmount*100)/100, status:'open', settledDate:null,
+        linkedSaleIds: newSales.map(s=>s.id)
+      }];
+      // stamp each sale with the ledger entry it belongs to
+      newSales.forEach(s=>{ s.ledgerId = ledgerId; });
+    }
+
+    const next = {...state, sales:[...state.sales, ...newSales], ledger:nextLedger};
+    setState(next);
+    saveState(next);
+    const itemCount = rows.length;
+    const paidNote = paymentStatus==='credit' ? ' (on credit)' : '';
+    toast((itemCount===1 ? `Added ${rows[0].qty} \u00d7 ${rows[0].item}` : `Added ${itemCount} items`)+paidNote, 'good');
+    reset(true);
+  }
+
+  function startRenameAgent(name){
+    setEditingAgent(name);
+    setNewAgentName(name);
+  }
+
+  function confirmRenameAgent(){
+    const trimmed = newAgentName.trim();
+    if(!trimmed){ toast('Name can\u2019t be empty.','bad'); return; }
+    if(trimmed !== editingAgent && state.agents.includes(trimmed)){
+      toast('That agent already exists.','bad'); return;
+    }
+    const next = {
+      ...state,
+      agents: state.agents.map(a=> a===editingAgent ? trimmed : a),
+      sales: state.sales.map(s=> s.agent===editingAgent ? {...s, agent:trimmed} : s),
+    };
+    setState(next);
+    saveState(next);
+    if(agent===editingAgent) setAgent(trimmed);
+    toast(`Renamed to "${trimmed}"`, 'good');
+    setEditingAgent(null);
+  }
+
+  function removeAgent(name){
+    const usedInSales = state.sales.some(s=>s.agent===name);
+    if(usedInSales){
+      toast('Can\u2019t remove \u2014 this agent has past sales recorded. Rename instead.','bad');
+      return;
+    }
+    const next = {...state, agents: state.agents.filter(a=>a!==name)};
+    setState(next);
+    saveState(next);
+    toast(`Removed ${name}`, 'good');
+  }
+
+  function addAgent(){
+    const trimmed = addAgentName.trim();
+    if(!trimmed){ return; }
+    if(state.agents.includes(trimmed)){ toast('That agent already exists.','bad'); return; }
+    const next = {...state, agents:[...state.agents, trimmed]};
+    setState(next);
+    saveState(next);
+    setAddAgentName('');
+    toast(`Added ${trimmed}`, 'good');
+  }
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <Field label="Date">
+        <input type="date" style={inputStyle} value={date} onChange={e=>setDate(e.target.value)} />
+      </Field>
+
+      <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10,fontWeight:600}}>Items</div>
+      {rows.map((r,idx)=>{
+        const stockLeft = r.item ? remainingStock(state,r.item) : null;
+        return (
+          <div key={r.key} style={{background:'var(--bg-card)',borderRadius:12,padding:14,marginBottom:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <span style={{fontSize:12,color:'var(--concrete-light)',fontWeight:600}}>Item {idx+1}</span>
+              {rows.length>1 && (
+                <span onClick={()=>removeRow(r.key)} style={{fontSize:12,color:'var(--bad)',cursor:'pointer',textDecoration:'underline'}}>Remove</span>
+              )}
+            </div>
+            <AutocompleteInput value={r.item} onChange={v=>updateRow(r.key,'item',v)} options={itemNames} placeholder="Search items…" />
+            {r.item && (
+              <div style={{marginTop:6, marginBottom:10, fontSize:12, color: stockLeft<=0 ? 'var(--bad)':'var(--concrete-light)'}}>
+                {stockLeft<=0 ? `Out of stock (${stockLeft} on hand)` : `${stockLeft} left in stock`}
+              </div>
+            )}
+            <div style={{display:'flex',gap:10,marginTop:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Quantity</div>
+                <input type="number" inputMode="decimal" style={{...inputStyle,padding:'10px'}} value={r.qty} onChange={e=>updateRow(r.key,'qty',e.target.value)} placeholder="0" />
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Price (each)</div>
+                <input type="number" inputMode="decimal" style={{...inputStyle,padding:'10px'}} value={r.price} onChange={e=>updateRow(r.key,'price',e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            {r.qty && r.price && (
+              <div style={{marginTop:8,fontSize:12,color:'var(--concrete-light)'}}>
+                Row total: <span style={{color:'var(--paper)',fontWeight:600}}>{(Number(r.qty)*Number(r.price)).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div onClick={addRow} style={{
+        textAlign:'center', padding:'12px', borderRadius:10, border:'1px dashed var(--line)',
+        color:'var(--accent)', fontSize:13, fontWeight:600, cursor:'pointer', marginBottom:20
+      }}>+ Add another item</div>
+
+      <Field label="Sales agent">
+        <PillSelect value={agent} onChange={setAgent} options={state.agents} />
+      </Field>
+
+      <div onClick={()=>setManageAgents(!manageAgents)} style={{
+        fontSize:12, color:'var(--concrete-light)', textDecoration:'underline', cursor:'pointer', marginBottom:16
+      }}>{manageAgents ? 'Hide agent list' : 'Manage agents'}</div>
+
+      {manageAgents && (
+        <div style={{background:'var(--bg-card)',borderRadius:12,padding:14,marginBottom:16}}>
+          {state.agents.map(a=>(
+            <div key={a} style={{padding:'8px 0',borderBottom:'1px solid var(--line)'}}>
+              {editingAgent===a ? (
+                <div>
+                  <input style={{...inputStyle, marginBottom:8, padding:'8px 10px'}} value={newAgentName} onChange={e=>setNewAgentName(e.target.value)} autoFocus />
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={confirmRenameAgent} style={{flex:1,padding:'8px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:12,cursor:'pointer'}}>Save</button>
+                    <button onClick={()=>setEditingAgent(null)} style={{flex:1,padding:'8px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:14}} onClick={()=>startRenameAgent(a)}>{a}</span>
+                  <div style={{display:'flex',gap:14}}>
+                    <span onClick={()=>startRenameAgent(a)} style={{fontSize:12,color:'var(--concrete-light)',cursor:'pointer',textDecoration:'underline'}}>Rename</span>
+                    <span onClick={()=>removeAgent(a)} style={{fontSize:12,color:'var(--bad)',cursor:'pointer',textDecoration:'underline'}}>Remove</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          <div style={{display:'flex',gap:8,marginTop:12}}>
+            <input style={{...inputStyle,padding:'8px 10px',fontSize:14}} value={addAgentName} onChange={e=>setAddAgentName(e.target.value)} placeholder="New agent name" />
+            <button onClick={addAgent} style={{padding:'8px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Add</button>
+          </div>
+        </div>
+      )}
+
+      <Field label="Payment">
+        <PillSelect value={paymentStatus} onChange={setPaymentStatus} options={['paid','credit']} />
+        <div style={{fontSize:12,color:'var(--concrete)',marginTop:6}}>
+          {paymentStatus==='credit' ? 'Sale happens now, payment comes later \u2014 tracked in Owed.' : 'Cash received now.'}
+        </div>
+      </Field>
+
+      {paymentStatus==='credit' && (
+        <Field label="Customer name">
+          <input style={inputStyle} value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="Who owes for this?" />
+        </Field>
+      )}
+
+      {rows.some(r=>r.qty&&r.price) && (
+        <div style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:16,fontSize:14,color:'var(--concrete-light)'}}>
+          Total: <span style={{color:'var(--paper)',fontWeight:600}}>
+            {rows.reduce((a,r)=> a + (Number(r.qty)||0)*(Number(r.price)||0), 0).toFixed(2)}
+          </span>
+        </div>
+      )}
+
+      <button onClick={submit} style={{
+        width:'100%', padding:'16px', borderRadius:12, border:'none',
+        background:'var(--accent)', color:'#1c1b19', fontSize:16, fontWeight:700,
+        cursor:'pointer', fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+      }}>Add sale</button>
+    </div>
+  );
+}
+
+function startOfWeek(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay(); // 0=Sun
+  const diff = (day===0 ? -6 : 1-day); // week starts Monday
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().slice(0,10);
+}
+function addDays(dateStr,n){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10);
+}
+
+function HistoryTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [mode,setMode] = useState('day'); // 'day' | 'week'
+  const [filterDate,setFilterDate] = useState(today);
+  const [weekStart,setWeekStart] = useState(startOfWeek(today));
+  const [editingSale,setEditingSale] = useState(null); // sale id being edited
+  const [editQty,setEditQty] = useState('');
+  const [editPrice,setEditPrice] = useState('');
+  const [confirmDelete,setConfirmDelete] = useState(null); // sale id pending delete confirmation
+
+  const itemNames = useMemo(()=>state.items.map(i=>i.name),[state.items]);
+
+  function startEdit(sale){
+    setEditingSale(sale.id);
+    setEditQty(String(sale.qty));
+    setEditPrice(String(sale.price));
+    setConfirmDelete(null);
+  }
+
+  function cancelEdit(){ setEditingSale(null); }
+
+  function saveEdit(sale){
+    const q = Number(editQty), p = Number(editPrice);
+    if(!q || q<=0){ toast('Quantity must be greater than 0.','bad'); return; }
+    if(!p || p<=0){ toast('Price must be greater than 0.','bad'); return; }
+
+    let next = {
+      ...state,
+      sales: state.sales.map(s=> s.id===sale.id ? {...s, qty:q, price:p} : s)
+    };
+    next.sales = recomputeItemFifo(next, sale.item);
+    setState(next);
+    saveState(next);
+    toast('Sale updated','good');
+    setEditingSale(null);
+  }
+
+  function deleteSale(sale){
+    let next = {
+      ...state,
+      sales: state.sales.filter(s=>s.id!==sale.id)
+    };
+    next.sales = recomputeItemFifo(next, sale.item);
+    setState(next);
+    saveState(next);
+    toast('Sale deleted','good');
+    setConfirmDelete(null);
+  }
+
+  const todaysSales = state.sales
+    .filter(s=>s.date===filterDate)
+    .sort((a,b)=>b.seq-a.seq);
+
+  const totalSales = todaysSales.reduce((a,s)=>a+s.qty*s.price,0);
+  const totalGP = todaysSales.reduce((a,s)=>a+s.grossProfit,0);
+
+  const weekEnd = addDays(weekStart,6);
+  const weekSales = state.sales.filter(s=> s.date>=weekStart && s.date<=weekEnd);
+  const weekTotal = weekSales.reduce((a,s)=>a+s.qty*s.price,0);
+  const weekGP = weekSales.reduce((a,s)=>a+s.grossProfit,0);
+
+  const weeksWithData = useMemo(()=>{
+    const set = new Set();
+    state.sales.forEach(s=>set.add(startOfWeek(s.date)));
+    set.add(startOfWeek(today)); // always include the current week, even with no sales yet
+    set.add(weekStart); // always include whichever week is currently selected, even mid-navigation via arrows
+    return [...set].sort().reverse(); // most recent first
+  },[state.sales,weekStart]);
+
+  const byDay = useMemo(()=>{
+    const days = [];
+    for(let i=0;i<7;i++){
+      const d = addDays(weekStart,i);
+      const daySales = weekSales.filter(s=>s.date===d);
+      days.push({ date:d, total: daySales.reduce((a,s)=>a+s.qty*s.price,0), count: daySales.length });
+    }
+    return days;
+  },[weekStart,weekSales]);
+
+  const byAgent = useMemo(()=>{
+    const map = {};
+    weekSales.forEach(s=>{
+      if(!map[s.agent]) map[s.agent] = {total:0, gp:0, count:0};
+      map[s.agent].total += s.qty*s.price;
+      map[s.agent].gp += s.grossProfit;
+      map[s.agent].count += 1;
+    });
+    return Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
+  },[weekSales]);
+
+  if(mode==='week'){
+    return (
+      <div style={{padding:'0 20px 100px'}}>
+        <div style={{display:'flex',gap:8,marginBottom:16}}>
+          <button onClick={()=>setMode('day')} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Day</button>
+          <button style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--accent)',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Week</button>
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:16}}>
+          <button onClick={()=>setWeekStart(addDays(weekStart,-7))} style={{padding:'8px 12px',borderRadius:8,border:'1px solid var(--line)',background:'var(--bg-raised)',color:'var(--paper)',cursor:'pointer'}}>\u2039</button>
+          <select
+            style={{...inputStyle, flex:1, padding:'8px 10px', fontSize:13, appearance:'auto', textAlign:'center'}}
+            value={weekStart}
+            onChange={e=>setWeekStart(e.target.value)}
+          >
+            {weeksWithData.map(w=>(
+              <option key={w} value={w}>{w} to {addDays(w,6)}</option>
+            ))}
+          </select>
+          <button onClick={()=>setWeekStart(addDays(weekStart,7))} style={{padding:'8px 12px',borderRadius:8,border:'1px solid var(--line)',background:'var(--bg-raised)',color:'var(--paper)',cursor:'pointer'}}>\u203a</button>
+        </div>
+
+        <div style={{display:'flex',gap:12,marginBottom:20}}>
+          <div style={{flex:1,background:'var(--bg-card)',borderRadius:12,padding:'14px'}}>
+            <div style={{fontSize:12,color:'var(--concrete-light)'}}>Week total</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>{weekTotal.toFixed(2)}</div>
+          </div>
+          <div style={{flex:1,background:'var(--bg-card)',borderRadius:12,padding:'14px'}}>
+            <div style={{fontSize:12,color:'var(--concrete-light)'}}>Gross profit</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",color:weekGP>=0?'var(--good)':'var(--bad)'}}>{weekGP.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:10}}>By day</div>
+        {byDay.map(d=>(
+          <div key={d.date} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--line)'}}>
+            <span style={{fontSize:14,color:'var(--concrete-light)'}}>{d.date}{d.count>0 ? ` (${d.count})` : ''}</span>
+            <span style={{fontSize:14,fontWeight:600}}>{d.total.toFixed(2)}</span>
+          </div>
+        ))}
+
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginTop:20,marginBottom:10}}>By agent</div>
+        {byAgent.length===0 && <div style={{fontSize:13,color:'var(--concrete-light)'}}>No sales this week.</div>}
+        {byAgent.map(([name,d])=>(
+          <div key={name} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--line)'}}>
+            <span style={{fontSize:14}}>{name} <span style={{color:'var(--concrete-light)'}}>({d.count})</span></span>
+            <span style={{fontSize:14,fontWeight:600}}>{d.total.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <button style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--accent)',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Day</button>
+        <button onClick={()=>setMode('week')} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Week</button>
+      </div>
+
+      <Field label="Date">
+        <input type="date" style={inputStyle} value={filterDate} onChange={e=>setFilterDate(e.target.value)} />
+      </Field>
+
+      {todaysSales.length>0 && (
+        <div style={{display:'flex',gap:12,marginBottom:16}}>
+          <div style={{flex:1,background:'var(--bg-card)',borderRadius:12,padding:'14px'}}>
+            <div style={{fontSize:12,color:'var(--concrete-light)'}}>Total sales</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>{totalSales.toFixed(2)}</div>
+          </div>
+          <div style={{flex:1,background:'var(--bg-card)',borderRadius:12,padding:'14px'}}>
+            <div style={{fontSize:12,color:'var(--concrete-light)'}}>Gross profit</div>
+            <div style={{fontSize:20,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",color:totalGP>=0?'var(--good)':'var(--bad)'}}>{totalGP.toFixed(2)}</div>
+          </div>
+        </div>
+      )}
+
+      {todaysSales.length===0 && (
+        <div style={{textAlign:'center',color:'var(--concrete-light)',padding:'40px 0',fontSize:14}}>
+          No sales logged for this date yet.
+        </div>
+      )}
+
+      {todaysSales.map(s=>(
+        <div key={s.id} style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:10}}>
+          {editingSale===s.id ? (
+            <div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:10}}>{s.item}</div>
+              <div style={{display:'flex',gap:10,marginBottom:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Quantity</div>
+                  <input type="number" inputMode="decimal" style={{...inputStyle,padding:'10px'}} value={editQty} onChange={e=>setEditQty(e.target.value)} />
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Price</div>
+                  <input type="number" inputMode="decimal" style={{...inputStyle,padding:'10px'}} value={editPrice} onChange={e=>setEditPrice(e.target.value)} />
+                </div>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>saveEdit(s)} style={{flex:1,padding:'10px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Save</button>
+                <button onClick={cancelEdit} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          ) : confirmDelete===s.id ? (
+            <div>
+              <div style={{fontSize:14,marginBottom:10}}>Delete this sale? This can\u2019t be undone.</div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>deleteSale(s)} style={{flex:1,padding:'10px',borderRadius:8,border:'none',background:'var(--bad)',color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'}}>Delete</button>
+                <button onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                <span style={{fontWeight:600,fontSize:15}}>{s.item}</span>
+                <span style={{fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",fontWeight:700}}>{(s.qty*s.price).toFixed(2)}</span>
+              </div>
+              <div style={{fontSize:13,color:'var(--concrete-light)',marginTop:4}}>
+                {s.qty} \u00d7 {s.price.toFixed(2)} &middot; {s.agent}
+              </div>
+              <div style={{fontSize:12,color:'var(--concrete)',marginTop:6,paddingTop:6,borderTop:'1px solid var(--line)'}}>
+                Cost basis: {s.fifoPrice.toFixed(2)} <span style={{opacity:0.7}}>({s.fifoLayer})</span> &middot; GP {s.grossProfit>=0?'+':''}{s.grossProfit.toFixed(2)}
+              </div>
+              <div style={{display:'flex',gap:16,marginTop:8}}>
+                <span onClick={()=>startEdit(s)} style={{fontSize:12,color:'var(--accent)',cursor:'pointer',textDecoration:'underline'}}>Edit</span>
+                <span onClick={()=>setConfirmDelete(s.id)} style={{fontSize:12,color:'var(--bad)',cursor:'pointer',textDecoration:'underline'}}>Delete</span>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StockTab({state,setState,toast}){
+  const [query,setQuery] = useState('');
+  const [editingItem,setEditingItem] = useState(null);
+  const [newName,setNewName] = useState('');
+  const [editQty,setEditQty] = useState('');
+  const [editPrice,setEditPrice] = useState('');
+
+  const rows = useMemo(()=>{
+    return state.items
+      .map(i=>{
+        const stockVal = fifoStockValue(state, i.name);
+        return { name:i.name, left: stockVal.qty, value: stockVal.value };
+      })
+      .filter(r=> query ? r.name.toLowerCase().includes(query.toLowerCase()) : true)
+      .sort((a,b)=> a.left - b.left); // lowest stock first, surfaces problems
+  },[state,query]);
+
+  const totalValue = useMemo(()=>{
+    return state.items.reduce((sum,i)=> sum + fifoStockValue(state,i.name).value, 0);
+  },[state]);
+
+  function startEdit(name){
+    setEditingItem(name);
+    setNewName(name);
+    const item = state.items.find(i=>i.name===name);
+    // Show the item's opening quantity/price as the editable "base" values.
+    // Note: this is the opening layer only - purchases/sales already recorded
+    // still apply on top of whatever you set here.
+    setEditQty(item ? String(item.openingQty) : '0');
+    setEditPrice(item ? String(item.openingPrice) : '0');
+  }
+
+  async function confirmEdit(){
+    const trimmedName = newName.trim();
+    if(!trimmedName){ toast('Name can\u2019t be empty.','bad'); return; }
+    if(trimmedName !== editingItem && state.items.some(i=>i.name===trimmedName)){
+      toast('An item with that name already exists.','bad');
+      return;
+    }
+    const qty = editQty===''? 0 : Number(editQty);
+    const price = editPrice===''? 0 : Number(editPrice);
+    if(isNaN(qty) || qty<0){ toast('Quantity must be 0 or more.','bad'); return; }
+    if(isNaN(price) || price<0){ toast('Price must be 0 or more.','bad'); return; }
+
+    const today = new Date().toISOString().slice(0,10);
+    const next = {
+      ...state,
+      items: state.items.map(i=> i.name===editingItem ? {...i, name:trimmedName, openingQty:qty, openingPrice:price, openingAsOf:today} : i),
+      batches: state.batches.map(b=> b.item===editingItem ? {...b, item:trimmedName} : b),
+      sales: state.sales.map(s=> s.item===editingItem ? {...s, item:trimmedName} : s),
+    };
+    setState(next);
+    const ok = await saveState(next);
+    if(!ok){ toast('Saved on screen, but couldn\u2019t save to storage \u2014 try again or check your connection.','bad'); return; }
+    toast('Updated \u2014 counted as of today, earlier purchases won\u2019t be added on top', 'good');
+    setEditingItem(null);
+  }
+
+  function resetToZero(){
+    setEditQty('0'); setEditPrice('0');
+  }
+
+  const [confirmBulkFix,setConfirmBulkFix] = useState(false);
+  async function fixAllOpeningDates(){
+    const today = new Date().toISOString().slice(0,10);
+    const next = {
+      ...state,
+      items: state.items.map(i=> ({...i, openingAsOf: today}))
+    };
+    setState(next);
+    const ok = await saveState(next);
+    if(!ok){ toast('Saved on screen, but couldn\u2019t save to storage \u2014 try again.','bad'); return; }
+    toast('All items now counted as of today \u2014 earlier Buy/Sale/Loss records won\u2019t be added on top', 'good');
+    setConfirmBulkFix(false);
+  }
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)'}}>Total stock value (FIFO cost)</div>
+        <div style={{fontSize:22,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>{totalValue.toFixed(2)}</div>
+      </div>
+
+      <Field label="Search">
+        <input style={inputStyle} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Filter items…" />
+      </Field>
+      <div style={{fontSize:12,color:'var(--concrete)',marginTop:-10,marginBottom:14}}>Tap an item to rename or edit its stock values.</div>
+
+      {confirmBulkFix ? (
+        <div style={{background:'var(--bg-card)',borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:13,marginBottom:10}}>
+            This marks every item as counted today, so old Buy/Sale/Loss records stop being added on top of the quantities you already corrected. This can\u2019t be undone automatically.
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={fixAllOpeningDates} style={{flex:1,padding:'10px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Yes, fix all items</button>
+            <button onClick={()=>setConfirmBulkFix(false)} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div onClick={()=>setConfirmBulkFix(true)} style={{
+          fontSize:12, color:'var(--accent)', textDecoration:'underline', cursor:'pointer', marginBottom:20
+        }}>Already recounted all your items? Fix stock totals now</div>
+      )}
+
+      {rows.map(r=>(
+        <div key={r.name} style={{
+          padding:'13px 16px', background:'var(--bg-card)', borderRadius:10, marginBottom:8
+        }}>
+          {editingItem===r.name ? (
+            <div>
+              <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Name</div>
+              <input style={{...inputStyle, marginBottom:10}} value={newName} onChange={e=>setNewName(e.target.value)} autoFocus />
+
+              <div style={{background:'var(--bg-raised)',borderRadius:8,padding:'10px 12px',marginBottom:12,fontSize:12,color:'var(--concrete-light)'}}>
+                Currently in stock: <span style={{color:'var(--paper)',fontWeight:700}}>{r.left}</span>
+                {(() => {
+                  const item = state.items.find(i=>i.name===r.name);
+                  return item && item.openingAsOf
+                    ? <span> (opening quantity below, counted as of {item.openingAsOf}, plus any Buy/Sale/Loss after that date)</span>
+                    : <span> (opening quantity below, plus every Buy since, minus every Sale and Loss)</span>;
+                })()}
+              </div>
+
+              <div style={{display:'flex',gap:10,marginBottom:6}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Opening quantity</div>
+                  <input type="number" inputMode="decimal" style={{...inputStyle,padding:'10px'}} value={editQty} onChange={e=>setEditQty(e.target.value)} />
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:'var(--concrete-light)',marginBottom:4}}>Opening cost price</div>
+                  <input type="number" inputMode="decimal" style={{...inputStyle,padding:'10px'}} value={editPrice} onChange={e=>setEditPrice(e.target.value)} />
+                </div>
+              </div>
+              <div onClick={resetToZero} style={{fontSize:12,color:'var(--accent)',cursor:'pointer',textDecoration:'underline',marginBottom:12}}>Reset both to 0</div>
+
+              <div style={{fontSize:11,color:'var(--concrete)',marginBottom:12}}>
+                Saving this sets the count as of today. Purchases, sales, and losses logged before today won\u2019t be added on top \u2014 only ones from today onward will.
+              </div>
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={confirmEdit} style={{
+                  flex:1, padding:'10px', borderRadius:8, border:'none', background:'var(--accent)',
+                  color:'#1c1b19', fontWeight:700, fontSize:13, cursor:'pointer'
+                }}>Save</button>
+                <button onClick={()=>setEditingItem(null)} style={{
+                  flex:1, padding:'10px', borderRadius:8, border:'1px solid var(--line)', background:'none',
+                  color:'var(--concrete-light)', fontWeight:600, fontSize:13, cursor:'pointer'
+                }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div onClick={()=>startEdit(r.name)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
+              <span style={{fontSize:14}}>{r.name}</span>
+              <div style={{textAlign:'right'}}>
+                <div style={{
+                  fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif", fontWeight:700, fontSize:15,
+                  color: r.left<=0 ? 'var(--bad)' : r.left<5 ? 'var(--accent)' : 'var(--paper)'
+                }}>{r.left}</div>
+                <div style={{fontSize:11,color:'var(--concrete-light)'}}>{r.value.toFixed(2)}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NewstockTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [date,setDate] = useState(today);
+  const [item,setItem] = useState('');
+  const [qty,setQty] = useState('');
+  const [price,setPrice] = useState('');
+  const [paymentStatus,setPaymentStatus] = useState('paid'); // 'paid' | 'credit'
+  const [supplierName,setSupplierName] = useState('');
+
+  const itemNames = useMemo(()=>state.items.map(i=>i.name),[state.items]);
+  const isNewItem = item && !state.items.some(i=>i.name===item);
+
+  function reset(keepDate){
+    setItem(''); setQty(''); setPrice(''); setPaymentStatus('paid'); setSupplierName('');
+    if(!keepDate) setDate(today);
+  }
+
+  function submit(){
+    if(!item){ toast('Enter or choose an item.','bad'); return; }
+    if(!qty || Number(qty)<=0){ toast('Enter a quantity greater than 0.','bad'); return; }
+    if(!price || Number(price)<0){ toast('Enter a valid price.','bad'); return; }
+    if(paymentStatus==='credit' && !supplierName.trim()){ toast('Enter the supplier\u2019s name for a credit purchase.','bad'); return; }
+
+    const q = Number(qty), p = Number(price);
+    let nextItems = state.items;
+    if(isNewItem){
+      // brand new item - add it to the item list so it's available in Sales too
+      nextItems = [...state.items, { name:item, openingQty:0, openingPrice:p }];
+    }
+
+    const batchId = 'batch_'+Date.now();
+    const newBatch = { id:batchId, date, item, qty:q, price:p, paymentStatus };
+    let nextLedger = state.ledger || [];
+    if(paymentStatus==='credit'){
+      const total = Math.round(q*p*100)/100;
+      nextLedger = [...nextLedger, {
+        id:'ledger_'+Date.now(), date, type:'payable', name:supplierName.trim(),
+        item: `${q}\u00d7${item}`, amount: total, status:'open', settledDate:null,
+        linkedBatchId: batchId
+      }];
+    }
+    const next = {...state, items:nextItems, batches:[...state.batches, newBatch], ledger:nextLedger};
+    setState(next);
+    saveState(next);
+    const paidNote = paymentStatus==='credit' ? ' (on credit)' : '';
+    toast(`Added ${q} \u00d7 ${item} to stock`+paidNote, 'good');
+    reset(true);
+  }
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <Field label="Date">
+        <input type="date" style={inputStyle} value={date} onChange={e=>setDate(e.target.value)} />
+      </Field>
+
+      <Field label="Item">
+        <AutocompleteInput value={item} onChange={setItem} options={itemNames} placeholder="Search or type a new item…" />
+        {isNewItem && (
+          <div style={{marginTop:8, fontSize:13, color:'var(--accent)'}}>
+            New item \u2014 will be added to your item list
+          </div>
+        )}
+      </Field>
+
+      <div style={{display:'flex',gap:12}}>
+        <div style={{flex:1}}>
+          <Field label="Quantity bought">
+            <input type="number" inputMode="decimal" style={inputStyle} value={qty} onChange={e=>setQty(e.target.value)} placeholder="0" />
+          </Field>
+        </div>
+        <div style={{flex:1}}>
+          <Field label="Price paid (each)">
+            <input type="number" inputMode="decimal" style={inputStyle} value={price} onChange={e=>setPrice(e.target.value)} placeholder="0.00" />
+          </Field>
+        </div>
+      </div>
+
+      {qty && price && (
+        <div style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:16,fontSize:14,color:'var(--concrete-light)'}}>
+          Total cost: <span style={{color:'var(--paper)',fontWeight:600}}>{(Number(qty)*Number(price)).toFixed(2)}</span>
+        </div>
+      )}
+
+      <Field label="Payment">
+        <PillSelect value={paymentStatus} onChange={setPaymentStatus} options={['paid','credit']} />
+        <div style={{fontSize:12,color:'var(--concrete)',marginTop:6}}>
+          {paymentStatus==='credit' ? 'Stock arrives now, you pay the supplier later \u2014 tracked in Owed.' : 'Paid the supplier now.'}
+        </div>
+      </Field>
+
+      {paymentStatus==='credit' && (
+        <Field label="Supplier name">
+          <input style={inputStyle} value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Who do you owe for this?" />
+        </Field>
+      )}
+
+      <button onClick={submit} style={{
+        width:'100%', padding:'16px', borderRadius:12, border:'none',
+        background:'var(--accent)', color:'#1c1b19', fontSize:16, fontWeight:700,
+        cursor:'pointer', fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+      }}>Add stock</button>
+
+      <div style={{marginTop:28}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10,fontWeight:600}}>Recent purchases</div>
+        {[...state.batches].reverse().slice(0,8).map((b,idx)=>(
+          <div key={idx} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--line)',fontSize:14}}>
+            <span>{b.item}</span>
+            <span style={{color:'var(--concrete-light)'}}>{b.qty} @ {b.price.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExpensesTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [date,setDate] = useState(today);
+  const [description,setDescription] = useState('');
+  const [accountType,setAccountType] = useState('');
+  const [amount,setAmount] = useState('');
+  const [notes,setNotes] = useState('');
+  const [paymentStatus,setPaymentStatus] = useState('paid'); // 'paid' | 'unpaid'
+  const [payeeName,setPayeeName] = useState('');
+
+  function reset(keepDate){
+    setDescription(''); setAccountType(''); setAmount(''); setNotes(''); setPaymentStatus('paid'); setPayeeName('');
+    if(!keepDate) setDate(today);
+  }
+
+  function submit(){
+    if(!description.trim()){ toast('Enter what this expense was for.','bad'); return; }
+    if(!accountType){ toast('Choose an expense category.','bad'); return; }
+    if(!amount || Number(amount)<=0){ toast('Enter an amount greater than 0.','bad'); return; }
+    if(paymentStatus==='unpaid' && !payeeName.trim()){ toast('Enter who you owe for this expense.','bad'); return; }
+
+    const expenseId = 'exp_'+Date.now();
+    const newExpense = {
+      id: expenseId, date, description:description.trim(),
+      accountType, amount:Number(amount), notes:notes.trim(),
+      paymentStatus
+    };
+    let nextLedger = state.ledger || [];
+    if(paymentStatus==='unpaid'){
+      nextLedger = [...nextLedger, {
+        id:'ledger_'+Date.now(), date, type:'payable', name:payeeName.trim(),
+        item: description.trim(), amount: Number(amount), status:'open', settledDate:null,
+        linkedExpenseId: expenseId
+      }];
+    }
+    const next = {...state, expenses:[...state.expenses, newExpense], ledger:nextLedger};
+    setState(next);
+    saveState(next);
+    const paidNote = paymentStatus==='unpaid' ? ' (unpaid)' : '';
+    toast(`Logged ${accountType} expense`+paidNote, 'good');
+    reset(true);
+  }
+
+  const thisMonth = date.slice(0,7);
+  const monthTotal = state.expenses
+    .filter(e=>e.date.slice(0,7)===thisMonth)
+    .reduce((a,e)=>a+e.amount,0);
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <Field label="Date">
+        <input type="date" style={inputStyle} value={date} onChange={e=>setDate(e.target.value)} />
+      </Field>
+
+      <Field label="What was it for">
+        <input style={inputStyle} value={description} onChange={e=>setDescription(e.target.value)} placeholder="e.g. Security, Base salary…" />
+      </Field>
+
+      <Field label="Category">
+        <PillSelect value={accountType} onChange={setAccountType} options={EXPENSE_TYPES} />
+      </Field>
+
+      <Field label="Amount">
+        <input type="number" inputMode="decimal" style={inputStyle} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
+      </Field>
+
+      <Field label="Payment">
+        <PillSelect value={paymentStatus} onChange={setPaymentStatus} options={['paid','unpaid']} />
+        <div style={{fontSize:12,color:'var(--concrete)',marginTop:6}}>
+          {paymentStatus==='unpaid' ? 'Expense happened now, you\u2019ll pay it later \u2014 tracked in Owed.' : 'Paid now.'}
+        </div>
+      </Field>
+
+      {paymentStatus==='unpaid' && (
+        <Field label="Who you owe">
+          <input style={inputStyle} value={payeeName} onChange={e=>setPayeeName(e.target.value)} placeholder="e.g. landlord, supplier name" />
+        </Field>
+      )}
+
+      <Field label="Notes (optional)">
+        <input style={inputStyle} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. paid to Nason" />
+      </Field>
+
+      <button onClick={submit} style={{
+        width:'100%', padding:'16px', borderRadius:12, border:'none',
+        background:'var(--accent)', color:'#1c1b19', fontSize:16, fontWeight:700,
+        cursor:'pointer', fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+      }}>Log expense</button>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginTop:20,marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)'}}>This month\u2019s expenses</div>
+        <div style={{fontSize:20,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>{monthTotal.toFixed(2)}</div>
+      </div>
+
+      <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10,fontWeight:600}}>Recent</div>
+      {[...state.expenses].reverse().slice(0,8).map(e=>(
+        <div key={e.id} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--line)',fontSize:14}}>
+          <div>
+            <div>{e.description}</div>
+            <div style={{fontSize:12,color:'var(--concrete)'}}>{e.accountType} &middot; {e.date}</div>
+          </div>
+          <span style={{fontWeight:600}}>{e.amount.toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function monthKey(dateStr){ return dateStr.slice(0,7); } // "2026-01-15" -> "2026-01"
+
+function fmtMoney(n){ return (n<0?'\u2212':'') + Math.abs(n).toFixed(2); }
+
+const ReportRow = ({label,value,bold,accent}) => (
+  <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0', borderBottom: bold?'none':'1px solid var(--line)'}}>
+    <span style={{fontSize:14, fontWeight: bold?700:400, color: bold?'var(--paper)':'var(--concrete-light)'}}>{label}</span>
+    <span style={{
+      fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif", fontWeight: bold?700:600, fontSize: bold?16:14,
+      color: accent ? (value>=0?'var(--good)':'var(--bad)') : 'var(--paper)'
+    }}>{fmtMoney(value)}</span>
+  </div>
+);
+
+function openReceivablesTotal(state, asOfMonth){
+  return (state.ledger||[])
+    .filter(l=> l.type==='receivable' && l.status==='open' && (!asOfMonth || monthKey(l.date)<=asOfMonth))
+    .reduce((a,l)=>a+l.amount,0);
+}
+function openPayablesTotal(state, asOfMonth){
+  return (state.ledger||[])
+    .filter(l=> l.type==='payable' && l.status==='open' && (!asOfMonth || monthKey(l.date)<=asOfMonth))
+    .reduce((a,l)=>a+l.amount,0);
+}
+
+const LOSS_REASONS = ['Damage','Theft','Expired','Other'];
+
+function DamageLossTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [date,setDate] = useState(today);
+  const [item,setItem] = useState('');
+  const [qty,setQty] = useState('');
+  const [reason,setReason] = useState('');
+  const [notes,setNotes] = useState('');
+
+  const itemNames = useMemo(()=>state.items.map(i=>i.name),[state.items]);
+  const stockLeft = item ? remainingStock(state,item) : null;
+
+  function reset(keepDate){
+    setItem(''); setQty(''); setReason(''); setNotes('');
+    if(!keepDate) setDate(today);
+  }
+
+  function submit(){
+    if(!item){ toast('Choose an item.','bad'); return; }
+    if(!state.items.some(i=>i.name===item)){ toast('That item isn\u2019t in your stock list.','bad'); return; }
+    if(!qty || Number(qty)<=0){ toast('Enter a quantity greater than 0.','bad'); return; }
+    if(!reason){ toast('Choose a reason.','bad'); return; }
+
+    const q = Number(qty);
+    const seq = (state.stockAdjustments||[]).length;
+    const fifo = computeFifoForLoss(state, item, date, q, null);
+    const costValue = Math.round(fifo.price*q*100)/100;
+
+    const adjustmentId = 'adj_'+Date.now();
+    const newAdjustment = {
+      id: adjustmentId, seq, date, item, qty:q, reason, notes:notes.trim(),
+      fifoPrice: Math.round(fifo.price*100)/100, fifoLayer: fifo.layerLabel,
+      costValue
+    };
+
+    // Record it as an expense too, so it correctly hits the P&L - matches how
+    // the review flagged this needing real accounting treatment, not just a note.
+    const expenseId = 'exp_'+Date.now();
+    const newExpense = {
+      id: expenseId, date, description: `Stock loss \u2014 ${reason}: ${q}\u00d7${item}`,
+      accountType:'Stock loss', amount: costValue, notes: notes.trim(),
+      paymentStatus:'paid', // a stock loss isn't a cash transaction - it doesn't touch Cash Flow.
+      linkedAdjustmentId: adjustmentId
+    };
+
+    const next = {
+      ...state,
+      stockAdjustments: [...(state.stockAdjustments||[]), newAdjustment],
+      expenses: [...state.expenses, newExpense]
+    };
+    setState(next);
+    saveState(next);
+    toast(`Logged ${q} \u00d7 ${item} lost to ${reason.toLowerCase()}`, 'good');
+    reset(true);
+  }
+
+  const recentLosses = [...(state.stockAdjustments||[])].reverse().slice(0,10);
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <Field label="Date">
+        <input type="date" style={inputStyle} value={date} onChange={e=>setDate(e.target.value)} />
+      </Field>
+
+      <Field label="Item">
+        <AutocompleteInput value={item} onChange={setItem} options={itemNames} placeholder="Search items…" />
+        {item && (
+          <div style={{marginTop:8, fontSize:13, color: stockLeft<=0 ? 'var(--bad)':'var(--concrete-light)'}}>
+            {stockLeft<=0 ? `No stock on hand (${stockLeft})` : `${stockLeft} currently in stock`}
+          </div>
+        )}
+      </Field>
+
+      <Field label="Quantity lost">
+        <input type="number" inputMode="decimal" style={inputStyle} value={qty} onChange={e=>setQty(e.target.value)} placeholder="0" />
+      </Field>
+
+      <Field label="Reason">
+        <PillSelect value={reason} onChange={setReason} options={LOSS_REASONS} />
+      </Field>
+
+      <Field label="Notes (optional)">
+        <input style={inputStyle} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. found damaged in storeroom" />
+      </Field>
+
+      <button onClick={submit} style={{
+        width:'100%', padding:'16px', borderRadius:12, border:'none',
+        background:'var(--accent)', color:'#1c1b19', fontSize:16, fontWeight:700,
+        cursor:'pointer', fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+      }}>Log loss</button>
+      <div style={{fontSize:12,color:'var(--concrete)',marginTop:10,marginBottom:20}}>
+        This reduces stock at its FIFO cost and logs a "Stock loss" expense, so your P&amp;L and inventory stay in sync.
+      </div>
+
+      <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10,fontWeight:600}}>Recent losses</div>
+      {recentLosses.length===0 && <div style={{fontSize:13,color:'var(--concrete-light)',textAlign:'center',padding:'20px 0'}}>None logged yet.</div>}
+      {recentLosses.map(a=>(
+        <div key={a.id} style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+            <span style={{fontWeight:600,fontSize:15}}>{a.item}</span>
+            <span style={{fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",fontWeight:700,color:'var(--bad)'}}>-{a.costValue.toFixed(2)}</span>
+          </div>
+          <div style={{fontSize:12,color:'var(--concrete-light)',marginTop:4}}>
+            {a.qty} units \u00b7 {a.reason} \u00b7 {a.date}
+          </div>
+          {a.notes && <div style={{fontSize:12,color:'var(--concrete)',marginTop:4}}>{a.notes}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LedgerTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [type,setType] = useState('receivable');
+  const [date,setDate] = useState(today);
+  const [name,setName] = useState('');
+  const [itemDesc,setItemDesc] = useState('');
+  const [amount,setAmount] = useState('');
+  const [filter,setFilter] = useState('open'); // 'open' | 'settled' | 'all'
+
+  function reset(){ setName(''); setItemDesc(''); setAmount(''); }
+
+  function submit(){
+    if(!name.trim()){ toast('Enter a customer or supplier name.','bad'); return; }
+    if(!amount || Number(amount)<=0){ toast('Enter an amount greater than 0.','bad'); return; }
+    const entry = {
+      id:'ledger_'+Date.now(), date, type, name:name.trim(), item:itemDesc.trim(),
+      amount:Number(amount), status:'open', settledDate:null
+    };
+    const next = {...state, ledger:[...(state.ledger||[]), entry]};
+    setState(next);
+    saveState(next);
+    toast(`Logged ${type==='payable'?'amount owed to':'amount owed by'} ${entry.name}`, 'good');
+    reset();
+  }
+
+  function markSettled(id){
+    const next = {
+      ...state,
+      ledger: state.ledger.map(l=> l.id===id ? {...l, status:'settled', settledDate: today} : l)
+    };
+    setState(next);
+    saveState(next);
+    toast('Marked as settled', 'good');
+  }
+
+  function reopen(id){
+    const next = {
+      ...state,
+      ledger: state.ledger.map(l=> l.id===id ? {...l, status:'open', settledDate:null} : l)
+    };
+    setState(next);
+    saveState(next);
+  }
+
+  const rows = (state.ledger||[])
+    .filter(l=> filter==='all' ? true : l.status===filter)
+    .sort((a,b)=> b.date.localeCompare(a.date));
+
+  const totalReceivable = openReceivablesTotal(state);
+  const totalPayable = openPayablesTotal(state);
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <div style={{display:'flex',gap:12,marginBottom:16}}>
+        <div style={{flex:1,background:'var(--bg-card)',borderRadius:12,padding:'14px'}}>
+          <div style={{fontSize:12,color:'var(--concrete-light)'}}>Owed to you</div>
+          <div style={{fontSize:18,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",color:'var(--good)'}}>{totalReceivable.toFixed(2)}</div>
+        </div>
+        <div style={{flex:1,background:'var(--bg-card)',borderRadius:12,padding:'14px'}}>
+          <div style={{fontSize:12,color:'var(--concrete-light)'}}>You owe</div>
+          <div style={{fontSize:18,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",color:'var(--bad)'}}>{totalPayable.toFixed(2)}</div>
+        </div>
+      </div>
+
+      <Field label="Type">
+        <PillSelect value={type} onChange={setType} options={['receivable','payable']} />
+        <div style={{fontSize:12,color:'var(--concrete)',marginTop:6}}>
+          {type==='receivable' ? 'Someone owes you money (e.g. sold on credit)' : 'You owe someone money (e.g. unpaid supplier bill)'}
+        </div>
+      </Field>
+
+      <Field label="Date">
+        <input type="date" style={inputStyle} value={date} onChange={e=>setDate(e.target.value)} />
+      </Field>
+
+      <Field label={type==='receivable' ? 'Customer name' : 'Supplier name'}>
+        <input style={inputStyle} value={name} onChange={e=>setName(e.target.value)} placeholder="Name" />
+      </Field>
+
+      <Field label="Item (optional)">
+        <input style={inputStyle} value={itemDesc} onChange={e=>setItemDesc(e.target.value)} placeholder="e.g. 10 bags Cement 42.5" />
+      </Field>
+
+      <Field label="Amount">
+        <input type="number" inputMode="decimal" style={inputStyle} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
+      </Field>
+
+      <button onClick={submit} style={{
+        width:'100%', padding:'16px', borderRadius:12, border:'none',
+        background:'var(--accent)', color:'#1c1b19', fontSize:16, fontWeight:700,
+        cursor:'pointer', fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+      }}>Log entry</button>
+
+      <div style={{display:'flex',gap:6,marginTop:24,marginBottom:14}}>
+        {[{k:'open',l:'Open'},{k:'settled',l:'Settled'},{k:'all',l:'All'}].map(f=>(
+          <button key={f.k} onClick={()=>setFilter(f.k)} style={{
+            flex:1, padding:'8px 4px', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer',
+            border: filter===f.k ? '1px solid var(--accent)' : '1px solid var(--line)',
+            background: filter===f.k ? 'var(--accent)' : 'none',
+            color: filter===f.k ? '#1c1b19' : 'var(--concrete-light)'
+          }}>{f.l}</button>
+        ))}
+      </div>
+
+      {rows.length===0 && <div style={{fontSize:13,color:'var(--concrete-light)',textAlign:'center',padding:'20px 0'}}>Nothing here.</div>}
+      {rows.map(l=>(
+        <div key={l.id} style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+            <span style={{fontWeight:600,fontSize:15}}>{l.name}</span>
+            <span style={{
+              fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif", fontWeight:700,
+              color: l.type==='receivable' ? 'var(--good)' : 'var(--bad)'
+            }}>{l.amount.toFixed(2)}</span>
+          </div>
+          <div style={{fontSize:12,color:'var(--concrete-light)',marginTop:4}}>
+            {l.type==='receivable' ? 'Owed to you' : 'You owe'} &middot; {l.date}
+            {l.status==='settled' && ` \u00b7 settled ${l.settledDate}`}
+          </div>
+          {l.item && (
+            <div style={{fontSize:12,color:'var(--concrete)',marginTop:4}}>{l.item}</div>
+          )}
+          <div style={{marginTop:8}}>
+            {l.status==='open' ? (
+              <span onClick={()=>markSettled(l.id)} style={{fontSize:12,color:'var(--accent)',cursor:'pointer',textDecoration:'underline'}}>Mark as settled</span>
+            ) : (
+              <span onClick={()=>reopen(l.id)} style={{fontSize:12,color:'var(--concrete-light)',cursor:'pointer',textDecoration:'underline'}}>Reopen</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function daysBetween(d1,d2){
+  const a = new Date(d1+'T00:00:00'), b = new Date(d2+'T00:00:00');
+  return Math.round((b-a)/(1000*60*60*24));
+}
+
+function nextDueInfo(state, staffMember, today){
+  const payments = state.payroll.filter(p=>p.staffId===staffMember.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastPaid = payments.length>0 ? payments[0].date : null;
+  if(staffMember.frequency==='variable' || !lastPaid){
+    return { label: lastPaid ? `Last paid ${lastPaid}` : 'Never paid yet', overdue:false, dueSoon:false };
+  }
+  const intervalDays = { daily:1, weekly:7, monthly:30 }[staffMember.frequency] || 30;
+  const daysSince = daysBetween(lastPaid, today);
+  const daysUntilDue = intervalDays - daysSince;
+  if(daysUntilDue === 0){
+    return { label: 'Due today', overdue:true, dueSoon:false };
+  }
+  if(daysUntilDue < 0){
+    return { label: `Overdue by ${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue)===1?'':'s'}`, overdue:true, dueSoon:false };
+  }
+  if(daysUntilDue <= 2){
+    return { label: `Due in ${daysUntilDue} day${daysUntilDue===1?'':'s'}`, overdue:false, dueSoon:true };
+  }
+  return { label: `Last paid ${lastPaid}`, overdue:false, dueSoon:false };
+}
+
+function HRTab({state,setState,toast}){
+  const today = new Date().toISOString().slice(0,10);
+  const [view,setView] = useState('staff'); // 'staff' | 'pay' | 'history'
+
+  // ---- Add/edit staff ----
+  const [name,setName] = useState('');
+  const [role,setRole] = useState('');
+  const [wage,setWage] = useState('');
+  const [frequency,setFrequency] = useState('monthly');
+  const [editingStaff,setEditingStaff] = useState(null);
+
+  function resetStaffForm(){ setName(''); setRole(''); setWage(''); setFrequency('monthly'); setEditingStaff(null); }
+
+  function startEditStaff(s){
+    setEditingStaff(s.id); setName(s.name); setRole(s.role||''); setWage(s.wage?String(s.wage):''); setFrequency(s.frequency);
+  }
+
+  function saveStaff(){
+    if(!name.trim()){ toast('Enter a name.','bad'); return; }
+    if(editingStaff){
+      const next = {...state, staff: state.staff.map(s=> s.id===editingStaff ? {...s, name:name.trim(), role:role.trim(), wage: wage?Number(wage):null, frequency} : s)};
+      setState(next); saveState(next);
+      toast('Updated','good');
+    } else {
+      const s = { id:'staff_'+Date.now(), name:name.trim(), role:role.trim(), wage: wage?Number(wage):null, frequency };
+      const next = {...state, staff:[...state.staff, s]};
+      setState(next); saveState(next);
+      toast(`Added ${s.name}`,'good');
+    }
+    resetStaffForm();
+  }
+
+  function removeStaff(id){
+    const hasPayments = state.payroll.some(p=>p.staffId===id);
+    if(hasPayments){ toast('Can\u2019t remove \u2014 this person has payment history.','bad'); return; }
+    const next = {...state, staff: state.staff.filter(s=>s.id!==id)};
+    setState(next); saveState(next);
+    toast('Removed','good');
+  }
+
+  // ---- Pay someone ----
+  const [payStaffId,setPayStaffId] = useState('');
+  const [payDate,setPayDate] = useState(today);
+  const [payAmount,setPayAmount] = useState('');
+  const [payNotes,setPayNotes] = useState('');
+
+  const selectedStaff = state.staff.find(s=>s.name===payStaffId);
+
+  function pickPayStaff(staffName){
+    setPayStaffId(staffName);
+    const s = state.staff.find(x=>x.name===staffName);
+    setPayAmount(s && s.wage ? String(s.wage) : '');
+  }
+
+  function submitPayment(){
+    if(!payStaffId){ toast('Choose who you\u2019re paying.','bad'); return; }
+    if(!payAmount || Number(payAmount)<=0){ toast('Enter an amount greater than 0.','bad'); return; }
+    const s = state.staff.find(x=>x.name===payStaffId);
+    if(!s){ toast('Couldn\u2019t find that staff member.','bad'); return; }
+    const expenseId = 'exp_'+Date.now();
+    const payrollId = 'pay_'+Date.now();
+    const expense = {
+      id: expenseId, date: payDate, description: `Wages \u2014 ${s.name}`,
+      accountType:'Salaries', amount:Number(payAmount), notes: payNotes.trim(),
+      paymentStatus:'paid' // payroll is only ever recorded at the moment it's actually paid out
+    };
+    const payment = {
+      id: payrollId, date: payDate, staffId: s.id, staffName: s.name,
+      amount:Number(payAmount), notes: payNotes.trim(), expenseId
+    };
+    const next = {...state, expenses:[...state.expenses, expense], payroll:[...state.payroll, payment]};
+    setState(next); saveState(next);
+    toast(`Paid ${s.name}`,'good');
+    setPayStaffId(''); setPayAmount(''); setPayNotes(''); setPayDate(today);
+  }
+
+  const recentPayments = [...state.payroll].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <div style={{display:'flex',gap:6,marginBottom:20}}>
+        {[{k:'staff',l:'Staff'},{k:'pay',l:'Pay someone'},{k:'history',l:'History'}].map(t=>(
+          <button key={t.k} onClick={()=>setView(t.k)} style={{
+            flex:1, padding:'10px 4px', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer',
+            border: view===t.k ? '1px solid var(--accent)' : '1px solid var(--line)',
+            background: view===t.k ? 'var(--accent)' : 'none',
+            color: view===t.k ? '#1c1b19' : 'var(--concrete-light)'
+          }}>{t.l}</button>
+        ))}
+      </div>
+
+      {view==='staff' && (
+        <div>
+          {state.staff.map(s=>{
+            const due = nextDueInfo(state, s, today);
+            return (
+              <div key={s.id} style={{background:'var(--bg-card)',borderRadius:12,padding:'14px 16px',marginBottom:10}}>
+                {editingStaff===s.id ? (
+                  <div>
+                    <input style={{...inputStyle,marginBottom:8}} value={name} onChange={e=>setName(e.target.value)} placeholder="Name" />
+                    <input style={{...inputStyle,marginBottom:8}} value={role} onChange={e=>setRole(e.target.value)} placeholder="Role (optional)" />
+                    <div style={{display:'flex',gap:10,marginBottom:8}}>
+                      <input type="number" inputMode="decimal" style={{...inputStyle,flex:1}} value={wage} onChange={e=>setWage(e.target.value)} placeholder="Fixed wage (optional)" />
+                    </div>
+                    <div style={{marginBottom:10}}>
+                      <PillSelect value={frequency} onChange={setFrequency} options={['daily','weekly','monthly','variable']} />
+                    </div>
+                    <div style={{display:'flex',gap:8}}>
+                      <button onClick={saveStaff} style={{flex:1,padding:'10px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Save</button>
+                      <button onClick={resetStaffForm} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                      <span style={{fontWeight:600,fontSize:15}}>{s.name}</span>
+                      {s.wage && <span style={{fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",fontWeight:700}}>{s.wage.toFixed(2)}</span>}
+                    </div>
+                    <div style={{fontSize:12,color:'var(--concrete-light)',marginTop:4}}>
+                      {s.role ? s.role+' \u00b7 ' : ''}{s.frequency}
+                    </div>
+                    <div style={{fontSize:12,marginTop:6,color: due.overdue?'var(--bad)': due.dueSoon?'var(--accent)':'var(--concrete)'}}>
+                      {due.label}
+                    </div>
+                    <div style={{display:'flex',gap:16,marginTop:8}}>
+                      <span onClick={()=>startEditStaff(s)} style={{fontSize:12,color:'var(--accent)',cursor:'pointer',textDecoration:'underline'}}>Edit</span>
+                      <span onClick={()=>removeStaff(s.id)} style={{fontSize:12,color:'var(--bad)',cursor:'pointer',textDecoration:'underline'}}>Remove</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {!editingStaff && (
+            <div style={{background:'var(--bg-card)',borderRadius:12,padding:14,marginTop:10}}>
+              <div style={{fontSize:12,color:'var(--concrete-light)',fontWeight:600,marginBottom:10}}>Add staff member</div>
+              <input style={{...inputStyle,marginBottom:8}} value={name} onChange={e=>setName(e.target.value)} placeholder="Name" />
+              <input style={{...inputStyle,marginBottom:8}} value={role} onChange={e=>setRole(e.target.value)} placeholder="Role (optional)" />
+              <input type="number" inputMode="decimal" style={{...inputStyle,marginBottom:8}} value={wage} onChange={e=>setWage(e.target.value)} placeholder="Fixed wage (optional, leave blank if variable)" />
+              <div style={{marginBottom:10}}>
+                <PillSelect value={frequency} onChange={setFrequency} options={['daily','weekly','monthly','variable']} />
+              </div>
+              <button onClick={saveStaff} style={{width:'100%',padding:'12px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:14,cursor:'pointer'}}>Add</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view==='pay' && (
+        <div>
+          <Field label="Who are you paying">
+            <PillSelect value={payStaffId} onChange={pickPayStaff} options={state.staff.map(s=>s.name)} />
+          </Field>
+          <Field label="Date">
+            <input type="date" style={inputStyle} value={payDate} onChange={e=>setPayDate(e.target.value)} />
+          </Field>
+          <Field label="Amount">
+            <input type="number" inputMode="decimal" style={inputStyle} value={payAmount} onChange={e=>setPayAmount(e.target.value)} placeholder="0.00" />
+          </Field>
+          <Field label="Notes (optional)">
+            <input style={inputStyle} value={payNotes} onChange={e=>setPayNotes(e.target.value)} placeholder="e.g. half month, bonus" />
+          </Field>
+          <button onClick={submitPayment} style={{
+            width:'100%', padding:'16px', borderRadius:12, border:'none',
+            background:'var(--accent)', color:'#1c1b19', fontSize:16, fontWeight:700,
+            cursor:'pointer', fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+          }}>Log payment</button>
+          <div style={{fontSize:12,color:'var(--concrete)',marginTop:10}}>This also logs as a Salaries expense, so it shows up in your P&amp;L automatically.</div>
+        </div>
+      )}
+
+      {view==='history' && (
+        <div>
+          {recentPayments.length===0 && <div style={{fontSize:13,color:'var(--concrete-light)',textAlign:'center',padding:'20px 0'}}>No payments logged yet.</div>}
+          {recentPayments.map(p=>(
+            <div key={p.id} style={{display:'flex',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--line)'}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:600}}>{p.staffName}</div>
+                <div style={{fontSize:12,color:'var(--concrete-light)'}}>{p.date}{p.notes ? ' \u00b7 '+p.notes : ''}</div>
+              </div>
+              <span style={{fontWeight:600,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>{p.amount.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HealthTab({state,setState,toast}){
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const thisYear = thisMonth.slice(0,4);
+  const [periodType,setPeriodType] = useState('month'); // 'month' | 'ytd'
+  const [month,setMonth] = useState(thisMonth);
+  const [year,setYear] = useState(thisYear);
+  const [report,setReport] = useState('pl'); // 'pl' | 'bs' | 'cf' | 'top'
+
+  const monthsWithData = useMemo(()=>{
+    const set = new Set();
+    state.sales.forEach(s=>set.add(monthKey(s.date)));
+    state.batches.forEach(b=>set.add(monthKey(b.date)));
+    state.expenses.forEach(e=>set.add(monthKey(e.date)));
+    set.add(thisMonth);
+    return [...set].sort();
+  },[state]);
+
+  const yearsWithData = useMemo(()=>{
+    const set = new Set();
+    monthsWithData.forEach(m=>set.add(m.slice(0,4)));
+    return [...set].sort();
+  },[monthsWithData]);
+
+  // For BS/CF which need a specific month even in YTD mode, use Dec (or latest month) of the selected year
+  const effectiveMonth = periodType==='ytd'
+    ? (monthsWithData.filter(m=>m.startsWith(year)).sort().slice(-1)[0] || `${year}-12`)
+    : month;
+
+  function printReport(){ window.print(); }
+
+  return (
+    <div style={{padding:'0 20px 100px'}}>
+      <div className="no-print" style={{display:'flex',gap:6,marginBottom:14}}>
+        {[{k:'month',l:'By month'},{k:'ytd',l:'Year to date'}].map(t=>(
+          <button key={t.k} onClick={()=>setPeriodType(t.k)} style={{
+            flex:1, padding:'9px 4px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer',
+            border: periodType===t.k ? '1px solid var(--accent)' : '1px solid var(--line)',
+            background: periodType===t.k ? 'var(--accent)' : 'none',
+            color: periodType===t.k ? '#1c1b19' : 'var(--concrete-light)'
+          }}>{t.l}</button>
+        ))}
+      </div>
+
+      {periodType==='month' ? (
+        <div className="no-print">
+          <Field label="Month">
+            <select style={{...inputStyle, appearance:'auto'}} value={month} onChange={e=>setMonth(e.target.value)}>
+              {monthsWithData.map(m=>(<option key={m} value={m}>{m}</option>))}
+            </select>
+          </Field>
+        </div>
+      ) : (
+        <div className="no-print">
+          <Field label="Year">
+            <select style={{...inputStyle, appearance:'auto'}} value={year} onChange={e=>setYear(e.target.value)}>
+              {yearsWithData.map(y=>(<option key={y} value={y}>{y}</option>))}
+            </select>
+          </Field>
+        </div>
+      )}
+
+      <div className="no-print" style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap'}}>
+        {[{k:'pl',l:'P&L'},{k:'bs',l:'Balance Sheet'},{k:'cf',l:'Cash Flow'},{k:'top',l:'Top items'}].map(t=>(
+          <button key={t.k} onClick={()=>setReport(t.k)} style={{
+            flex:'1 0 45%', padding:'10px 4px', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer',
+            border: report===t.k ? '1px solid var(--accent)' : '1px solid var(--line)',
+            background: report===t.k ? 'var(--accent)' : 'none',
+            color: report===t.k ? '#1c1b19' : 'var(--concrete-light)'
+          }}>{t.l}</button>
+        ))}
+      </div>
+
+      <div className="print-title" style={{display:'none'}}>
+        Tanbuild \u2014 {report==='pl'?'Profit & Loss':report==='bs'?'Balance Sheet':report==='cf'?'Cash Flow':'Top Items'}
+        {' \u2014 '}{periodType==='ytd' ? `Year to date ${year}` : effectiveMonth}
+      </div>
+
+      {report==='pl' && (periodType==='ytd'
+        ? <PLPanel state={state} month={null} yearPrefix={year} />
+        : <PLPanel state={state} month={month} />)}
+      {report==='bs' && <BalanceSheetPanel state={state} setState={setState} month={effectiveMonth} />}
+      {report==='cf' && <CashFlowPanel state={state} setState={setState} month={effectiveMonth} />}
+      {report==='top' && (periodType==='ytd'
+        ? <TopItemsPanel state={state} yearPrefix={year} />
+        : <TopItemsPanel state={state} month={month} />)}
+
+      <div onClick={printReport} className="no-print" style={{
+        marginTop:20, textAlign:'center', padding:'12px', borderRadius:10, border:'1px solid var(--line)',
+        color:'var(--concrete-light)', fontSize:13, fontWeight:600, cursor:'pointer'
+      }}>Print / Share this report</div>
+    </div>
+  );
+}
+
+function PLPanel({state,month,yearPrefix}){
+  const monthSales = state.sales.filter(s=> yearPrefix ? s.date.startsWith(yearPrefix) : monthKey(s.date)===month);
+  const totalSales = monthSales.reduce((a,s)=>a+s.qty*s.price,0);
+  const cogs = monthSales.reduce((a,s)=>a+(s.fifoPrice*s.qty),0);
+  const grossProfit = totalSales - cogs;
+  const monthExpenses = state.expenses.filter(e=> yearPrefix ? e.date.startsWith(yearPrefix) : monthKey(e.date)===month);
+  const totalExpenses = monthExpenses.reduce((a,e)=>a+e.amount,0);
+  const netProfit = grossProfit - totalExpenses;
+
+  const expensesByType = useMemo(()=>{
+    const map = {};
+    monthExpenses.forEach(e=>{ map[e.accountType] = (map[e.accountType]||0) + e.amount; });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  },[monthExpenses]);
+
+  return (
+    <div>
+      {monthSales.length===0 && monthExpenses.length===0 && (
+        <div style={{fontSize:12,color:'var(--concrete)',marginBottom:14,padding:'10px 12px',background:'var(--bg-raised)',borderRadius:8}}>
+          No sales or expenses logged in the app for this period yet.
+        </div>
+      )}
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px',marginBottom:16}}>
+        <ReportRow label="Total sales" value={totalSales} />
+        <ReportRow label="Cost of goods sold" value={-cogs} />
+        <ReportRow label="Gross profit" value={grossProfit} bold accent />
+      </div>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px',marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:6}}>Expenses</div>
+        {expensesByType.length===0 && <div style={{fontSize:13,color:'var(--concrete-light)',padding:'6px 0'}}>None logged this month.</div>}
+        {expensesByType.map(([type,amt])=>(<ReportRow key={type} label={type} value={-amt} />))}
+        <ReportRow label="Total expenses" value={-totalExpenses} bold />
+      </div>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px'}}>
+        <ReportRow label="Net profit" value={netProfit} bold accent />
+      </div>
+    </div>
+  );
+}
+
+function BalanceSheetPanel({state,setState,month}){
+  // Cash: closing balance for this month, computed same way as Cash Flow panel
+  const cash = computeClosingCash(state, month);
+
+  // Inventory: FIFO stock value AS OF the end of the selected month (only counting
+  // sales/purchases up to that month, not the live/current totals)
+  const inventoryValue = useMemo(()=>{
+    const cutoff = month + '-32'; // sorts after any real date in that month
+    const scopedState = {
+      ...state,
+      sales: state.sales.filter(s=>monthKey(s.date)<=month),
+      batches: state.batches.filter(b=>monthKey(b.date)<=month),
+    };
+    return state.items.reduce((sum,i)=> sum + fifoStockValue(scopedState,i.name).value, 0);
+  },[state,month]);
+
+  const accountsReceivable = useMemo(()=>openReceivablesTotal(state, month),[state,month]);
+  const accountsPayable = useMemo(()=>openPayablesTotal(state, month),[state,month]);
+
+  const totalAssets = cash + inventoryValue + accountsReceivable;
+
+  const capital = state.capital || 0;
+  const retainedEarnings = useMemo(()=>calculateRetainedEarnings(state, month),[state,month]);
+  const drawings = useMemo(()=>totalDrawings(state, month),[state,month]);
+
+  const totalEquity = capital + retainedEarnings - drawings;
+  const totalLiabilities = accountsPayable;
+  const balanceCheck = totalAssets - (totalLiabilities + totalEquity);
+
+  function setCapital(v){
+    const next = {...state, capital: Number(v)||0};
+    setState(next);
+    saveState(next);
+  }
+
+  const [drawDate,setDrawDate] = useState(new Date().toISOString().slice(0,10));
+  const [drawAmount,setDrawAmount] = useState('');
+  const [drawNotes,setDrawNotes] = useState('');
+  const [showDrawForm,setShowDrawForm] = useState(false);
+
+  function submitDrawing(){
+    if(!drawAmount || Number(drawAmount)<=0) return;
+    const next = {...state, drawings:[...(state.drawings||[]), {
+      id:'draw_'+Date.now(), date:drawDate, amount:Number(drawAmount), notes:drawNotes.trim()
+    }]};
+    setState(next);
+    saveState(next);
+    setDrawAmount(''); setDrawNotes(''); setShowDrawForm(false);
+  }
+
+  const recentDrawings = [...(state.drawings||[])].filter(d=>monthKey(d.date)<=month).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+
+  return (
+    <div>
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px',marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:6}}>Assets</div>
+        <ReportRow label="Cash" value={cash} />
+        <ReportRow label="Accounts receivable" value={accountsReceivable} />
+        <ReportRow label="Inventory (FIFO cost)" value={inventoryValue} />
+        <ReportRow label="Total assets" value={totalAssets} bold />
+      </div>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px',marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:6}}>Liabilities</div>
+        <ReportRow label="Accounts payable" value={accountsPayable} />
+        <ReportRow label="Total liabilities" value={totalLiabilities} bold />
+      </div>
+
+      <Field label="Owner's capital">
+        <input type="number" inputMode="decimal" style={inputStyle} value={capital} onChange={e=>setCapital(e.target.value)} placeholder="0.00" />
+      </Field>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px',marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:6}}>Equity</div>
+        <ReportRow label="Capital" value={capital} />
+        <ReportRow label="Retained earnings" value={retainedEarnings} />
+        <ReportRow label="Owner drawings" value={-drawings} />
+        <ReportRow label="Total equity" value={totalEquity} bold />
+      </div>
+
+      <div className="no-print" style={{marginBottom:16}}>
+        {!showDrawForm ? (
+          <div onClick={()=>setShowDrawForm(true)} style={{
+            textAlign:'center', padding:'12px', borderRadius:10, border:'1px dashed var(--line)',
+            color:'var(--accent)', fontSize:13, fontWeight:600, cursor:'pointer'
+          }}>+ Log an owner drawing</div>
+        ) : (
+          <div style={{background:'var(--bg-card)',borderRadius:12,padding:14}}>
+            <div style={{fontSize:12,color:'var(--concrete-light)',fontWeight:600,marginBottom:10}}>Log a drawing</div>
+            <input type="date" style={{...inputStyle,marginBottom:8}} value={drawDate} onChange={e=>setDrawDate(e.target.value)} />
+            <input type="number" inputMode="decimal" style={{...inputStyle,marginBottom:8}} value={drawAmount} onChange={e=>setDrawAmount(e.target.value)} placeholder="Amount taken out" />
+            <input style={{...inputStyle,marginBottom:10}} value={drawNotes} onChange={e=>setDrawNotes(e.target.value)} placeholder="Notes (optional)" />
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={submitDrawing} style={{flex:1,padding:'10px',borderRadius:8,border:'none',background:'var(--accent)',color:'#1c1b19',fontWeight:700,fontSize:13,cursor:'pointer'}}>Save</button>
+              <button onClick={()=>setShowDrawForm(false)} style={{flex:1,padding:'10px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {recentDrawings.length>0 && (
+          <div style={{marginTop:12}}>
+            {recentDrawings.map(d=>(
+              <div key={d.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--line)',fontSize:13}}>
+                <span style={{color:'var(--concrete-light)'}}>{d.date}{d.notes ? ' \u00b7 '+d.notes : ''}</span>
+                <span style={{fontWeight:600}}>{d.amount.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px'}}>
+        <ReportRow label="Balance check" value={balanceCheck} bold accent />
+        <div style={{fontSize:11,color:'var(--concrete)',marginTop:6}}>
+          Should be 0. A non-zero number usually means liabilities aren\u2019t fully tracked yet (e.g. unpaid supplier bills) \u2014 not necessarily an error.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Single source of truth for retained earnings: cumulative net profit across every
+// month up to and including `month`. Anything that needs this number - Balance Sheet
+// today, any future report - should call this rather than recompute it locally.
+function calculateRetainedEarnings(state, month){
+  let total = 0;
+  const allMonths = new Set();
+  state.sales.forEach(s=>allMonths.add(monthKey(s.date)));
+  state.expenses.forEach(e=>allMonths.add(monthKey(e.date)));
+  [...allMonths].filter(m=>m<=month).forEach(m=>{
+    const mSales = state.sales.filter(s=>monthKey(s.date)===m);
+    const sales = mSales.reduce((a,s)=>a+s.qty*s.price,0);
+    const cogs = mSales.reduce((a,s)=>a+(s.fifoPrice*s.qty),0);
+    const mExpenses = state.expenses.filter(e=>monthKey(e.date)===m).reduce((a,e)=>a+e.amount,0);
+    total += (sales - cogs) - mExpenses;
+  });
+  return total;
+}
+
+function totalDrawings(state, asOfMonth){
+  return (state.drawings||[])
+    .filter(d=> !asOfMonth || monthKey(d.date)<=asOfMonth)
+    .reduce((a,d)=>a+d.amount,0);
+}
+
+function computeClosingCash(state, month){
+  const openingBalances = state.cashOpeningBalances || {};
+  const ledger = state.ledger || [];
+  // find the earliest month with data, walk forward month by month accumulating net cash flow,
+  // so "closing cash" for any month reflects everything before it too - not just that month in isolation
+  const allMonths = new Set();
+  state.sales.forEach(s=>allMonths.add(monthKey(s.date)));
+  state.batches.forEach(b=>allMonths.add(monthKey(b.date)));
+  state.expenses.forEach(e=>allMonths.add(monthKey(e.date)));
+  ledger.forEach(l=>{ if(l.settledDate) allMonths.add(monthKey(l.settledDate)); });
+  (state.drawings||[]).forEach(d=>allMonths.add(monthKey(d.date)));
+  Object.keys(openingBalances).forEach(m=>allMonths.add(m));
+  const sorted = [...allMonths].filter(m=>m<=month).sort();
+  if(sorted.length===0) return openingBalances[month] ?? 0;
+
+  const firstMonth = sorted[0];
+  let running = openingBalances[firstMonth] ?? 0;
+  for(const m of sorted){
+    if(m===firstMonth){
+      // opening balance already set as starting point above; for firstMonth just add its net flow
+    } else {
+      // subsequent months start from where the previous one ended, unless a manual override was entered
+      if(openingBalances[m] !== undefined) running = openingBalances[m];
+    }
+    // Only paid-in-cash transactions count directly; unpaid/credit ones don't move cash yet.
+    const mSales = state.sales.filter(s=>monthKey(s.date)===m && (s.paymentStatus||'paid')==='paid').reduce((a,s)=>a+s.qty*s.price,0);
+    const mPurchases = state.batches.filter(b=>monthKey(b.date)===m && (b.paymentStatus||'paid')==='paid').reduce((a,b)=>a+b.qty*b.price,0);
+    const mExpenses = state.expenses.filter(e=>monthKey(e.date)===m && (e.paymentStatus||'paid')==='paid').reduce((a,e)=>a+e.amount,0);
+    // Ledger settlements move cash in the month they're actually settled, not the original transaction date.
+    const mReceipts = ledger.filter(l=>l.type==='receivable' && l.status==='settled' && l.settledDate && monthKey(l.settledDate)===m).reduce((a,l)=>a+l.amount,0);
+    const mPayments = ledger.filter(l=>l.type==='payable' && l.status==='settled' && l.settledDate && monthKey(l.settledDate)===m).reduce((a,l)=>a+l.amount,0);
+    const mDrawings = (state.drawings||[]).filter(d=>monthKey(d.date)===m).reduce((a,d)=>a+d.amount,0);
+    running += (mSales + mReceipts) - (mPurchases + mExpenses + mPayments + mDrawings);
+  }
+  return running;
+}
+
+function CashFlowPanel({state,setState,month}){
+  // Only count transactions actually PAID in cash - older records without a
+  // paymentStatus field are treated as 'paid' (that's how the app behaved
+  // before payment status existed, so this keeps old data consistent).
+  const cashSales = useMemo(()=>state.sales
+    .filter(s=>monthKey(s.date)===month && (s.paymentStatus||'paid')==='paid')
+    .reduce((a,s)=>a+s.qty*s.price,0),[state.sales,month]);
+
+  const cashPurchases = useMemo(()=>state.batches
+    .filter(b=>monthKey(b.date)===month && (b.paymentStatus||'paid')==='paid')
+    .reduce((a,b)=>a+b.qty*b.price,0),[state.batches,month]);
+
+  const cashExpenses = useMemo(()=>state.expenses
+    .filter(e=>monthKey(e.date)===month && (e.paymentStatus||'paid')==='paid')
+    .reduce((a,e)=>a+e.amount,0),[state.expenses,month]);
+
+  // Ledger settlements: money that actually changed hands this month, regardless
+  // of when the original sale/purchase/expense happened. A receivable settled
+  // this month = cash coming in now; a payable settled = cash going out now.
+  const ledgerReceipts = useMemo(()=>(state.ledger||[])
+    .filter(l=> l.type==='receivable' && l.status==='settled' && l.settledDate && monthKey(l.settledDate)===month)
+    .reduce((a,l)=>a+l.amount,0),[state.ledger,month]);
+
+  const ledgerPayments = useMemo(()=>(state.ledger||[])
+    .filter(l=> l.type==='payable' && l.status==='settled' && l.settledDate && monthKey(l.settledDate)===month)
+    .reduce((a,l)=>a+l.amount,0),[state.ledger,month]);
+
+  const netCashFlow = (cashSales + ledgerReceipts) - (cashPurchases + cashExpenses + ledgerPayments);
+
+  const openingBalances = state.cashOpeningBalances || {};
+  const hasManualOpening = openingBalances[month] !== undefined;
+  const closingBalance = computeClosingCash(state, month);
+  const openingBalance = closingBalance - netCashFlow;
+
+  function setOpeningBalance(v){
+    const val = Number(v)||0;
+    const next = {...state, cashOpeningBalances: {...openingBalances, [month]: val}};
+    setState(next);
+    saveState(next);
+  }
+
+  return (
+    <div>
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px',marginBottom:16}}>
+        <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:6}}>Operating activities</div>
+        <ReportRow label="Cash sales" value={cashSales} />
+        <ReportRow label="Cash paid for stock" value={-cashPurchases} />
+        <ReportRow label="Cash paid for expenses" value={-cashExpenses} />
+        {ledgerReceipts>0 && <ReportRow label="Received from customers (Owed)" value={ledgerReceipts} />}
+        {ledgerPayments>0 && <ReportRow label="Paid to suppliers (Owed)" value={-ledgerPayments} />}
+        <ReportRow label="Net cash flow" value={netCashFlow} bold accent />
+      </div>
+
+      <Field label={hasManualOpening ? "Opening cash balance (manually set)" : "Opening cash balance"}>
+        <input type="number" inputMode="decimal" style={inputStyle}
+          value={openingBalance.toFixed(2)} onChange={e=>setOpeningBalance(e.target.value)} placeholder="0.00" />
+      </Field>
+      <div style={{fontSize:12,color:'var(--concrete)',marginTop:-10,marginBottom:16}}>
+        Only set this for your very first month \u2014 later months carry forward automatically.
+      </div>
+
+      <div style={{background:'var(--bg-card)',borderRadius:12,padding:'16px'}}>
+        <ReportRow label="Opening balance" value={openingBalance} />
+        <ReportRow label="Net cash flow" value={netCashFlow} />
+        <ReportRow label="Closing balance" value={closingBalance} bold accent />
+      </div>
+    </div>
+  );
+}
+
+function TopItemsPanel({state,month,yearPrefix}){
+  const [rankBy,setRankBy] = useState('revenue'); // 'revenue' | 'grossProfit'
+
+  const periodSales = useMemo(()=>{
+    return state.sales.filter(s=> yearPrefix ? s.date.startsWith(yearPrefix) : monthKey(s.date)===month);
+  },[state.sales,month,yearPrefix]);
+
+  const byItem = useMemo(()=>{
+    const map = {};
+    periodSales.forEach(s=>{
+      if(!map[s.item]) map[s.item] = { item:s.item, revenue:0, grossProfit:0, qty:0 };
+      map[s.item].revenue += s.qty*s.price;
+      map[s.item].grossProfit += s.grossProfit;
+      map[s.item].qty += s.qty;
+    });
+    return Object.values(map);
+  },[periodSales]);
+
+  const ranked = useMemo(()=>{
+    return [...byItem].sort((a,b)=> b[rankBy]-a[rankBy]);
+  },[byItem,rankBy]);
+
+  const topFive = ranked.slice(0,5);
+  const bottomFive = [...ranked].reverse().slice(0,5).filter(r=>!topFive.includes(r));
+
+  return (
+    <div>
+      {ranked.length===0 && (
+        <div style={{fontSize:12,color:'var(--concrete)',marginBottom:14,padding:'10px 12px',background:'var(--bg-raised)',borderRadius:8}}>
+          No sales logged in the app for this period yet.
+        </div>
+      )}
+
+      {ranked.length>0 && (
+        <div>
+          <div className="no-print" style={{display:'flex',gap:6,marginBottom:16}}>
+            {[{k:'revenue',l:'By revenue'},{k:'grossProfit',l:'By gross profit'}].map(t=>(
+              <button key={t.k} onClick={()=>setRankBy(t.k)} style={{
+                flex:1, padding:'9px 4px', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer',
+                border: rankBy===t.k ? '1px solid var(--accent)' : '1px solid var(--line)',
+                background: rankBy===t.k ? 'var(--accent)' : 'none',
+                color: rankBy===t.k ? '#1c1b19' : 'var(--concrete-light)'
+              }}>{t.l}</button>
+            ))}
+          </div>
+
+          <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginBottom:10}}>Top sellers</div>
+          {topFive.map((r,idx)=>(
+            <div key={r.item} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--line)'}}>
+              <span style={{fontSize:14}}>{idx+1}. {r.item} <span style={{color:'var(--concrete-light)'}}>({r.qty})</span></span>
+              <span style={{fontSize:14,fontWeight:600,color:'var(--good)'}}>{(rankBy==='revenue'?r.revenue:r.grossProfit).toFixed(2)}</span>
+            </div>
+          ))}
+
+          {ranked.length>5 && (
+            <div>
+              <div style={{fontSize:12,color:'var(--concrete-light)',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:600,marginTop:20,marginBottom:10}}>Slow movers</div>
+              {bottomFive.map((r,idx)=>(
+                <div key={r.item} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--line)'}}>
+                  <span style={{fontSize:14}}>{r.item} <span style={{color:'var(--concrete-light)'}}>({r.qty})</span></span>
+                  <span style={{fontSize:14,fontWeight:600,color:'var(--concrete-light)'}}>{(rankBy==='revenue'?r.revenue:r.grossProfit).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function downloadJSON(data, filename){
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function validateBackup(data){
+  if(!data || typeof data !== 'object') return 'File doesn\u2019t look like a valid backup.';
+  const requiredArrays = ['items','batches','sales','agents','expenses','ledger','staff','payroll'];
+  for(const key of requiredArrays){
+    if(!Array.isArray(data[key])) return `Missing or invalid "${key}" \u2014 this doesn\u2019t look like a Tanbuild backup file.`;
+  }
+  return null; // valid
+}
+
+function BackupPanel({state,setState,toast,onClose}){
+  const fileInputRef = useRef(null);
+  const [confirmImport,setConfirmImport] = useState(null); // parsed data pending confirmation
+  const [pendingFileName,setPendingFileName] = useState('');
+
+  function exportBackup(){
+    const filename = `tanbuild-backup-${new Date().toISOString().slice(0,10)}.json`;
+    downloadJSON(state, filename);
+    toast('Backup downloaded','good');
+  }
+
+  function handleFileSelect(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      let parsed;
+      try{
+        parsed = JSON.parse(evt.target.result);
+      }catch(err){
+        toast('That file isn\u2019t valid JSON.','bad');
+        return;
+      }
+      const error = validateBackup(parsed);
+      if(error){
+        toast(error,'bad');
+        return;
+      }
+      setConfirmImport(parsed);
+      setPendingFileName(file.name);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // allow re-selecting the same file later
+  }
+
+  function confirmRestore(){
+    setState(confirmImport);
+    saveState(confirmImport);
+    toast('Backup restored','good');
+    setConfirmImport(null);
+    onClose();
+  }
+
+  const summary = state ? {
+    sales: state.sales.length,
+    items: state.items.length,
+    expenses: state.expenses.length,
+    ledger: (state.ledger||[]).length,
+    staff: (state.staff||[]).length,
+  } : null;
+
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:100,
+      display:'flex', alignItems:'flex-end', justifyContent:'center'
+    }} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:'var(--bg-raised)', borderRadius:'16px 16px 0 0', padding:'24px 20px',
+        width:'100%', maxWidth:480, maxHeight:'85vh', overflowY:'auto'
+      }}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <span style={{fontSize:18,fontWeight:700,fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"}}>Backup</span>
+          <span onClick={onClose} style={{fontSize:20,color:'var(--concrete-light)',cursor:'pointer',padding:4}}>\u2715</span>
+        </div>
+
+        {confirmImport ? (
+          <div>
+            <div style={{fontSize:14,marginBottom:12}}>
+              Restore from <span style={{fontWeight:600}}>{pendingFileName}</span>?
+            </div>
+            <div style={{background:'var(--bg-card)',borderRadius:10,padding:14,marginBottom:16,fontSize:13,color:'var(--concrete-light)'}}>
+              This file has {confirmImport.sales.length} sales, {confirmImport.items.length} items, {confirmImport.expenses.length} expenses.
+            </div>
+            <div style={{fontSize:13,color:'var(--bad)',marginBottom:16}}>
+              This will replace everything currently in the app with the contents of this file. Your current data will be lost unless you\u2019ve backed it up separately.
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={confirmRestore} style={{flex:1,padding:'12px',borderRadius:8,border:'none',background:'var(--bad)',color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>Replace everything</button>
+              <button onClick={()=>setConfirmImport(null)} style={{flex:1,padding:'12px',borderRadius:8,border:'1px solid var(--line)',background:'none',color:'var(--concrete-light)',fontWeight:600,fontSize:14,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            {summary && (
+              <div style={{background:'var(--bg-card)',borderRadius:10,padding:14,marginBottom:20,fontSize:13,color:'var(--concrete-light)'}}>
+                Currently on this device: {summary.sales} sales, {summary.items} items, {summary.expenses} expenses, {summary.ledger} ledger entries, {summary.staff} staff.
+              </div>
+            )}
+
+            <div style={{fontSize:13,color:'var(--concrete-light)',marginBottom:10}}>
+              Everything in this app lives on this device only. Download a backup regularly and keep it somewhere safe (email it to yourself, save to Google Drive) so you never lose your data.
+            </div>
+
+            <button onClick={exportBackup} style={{
+              width:'100%', padding:'14px', borderRadius:12, border:'none', marginBottom:12,
+              background:'var(--accent)', color:'#1c1b19', fontSize:15, fontWeight:700, cursor:'pointer'
+            }}>Download backup</button>
+
+            <button onClick={()=>fileInputRef.current.click()} style={{
+              width:'100%', padding:'14px', borderRadius:12, border:'1px solid var(--line)',
+              background:'none', color:'var(--paper)', fontSize:15, fontWeight:700, cursor:'pointer'
+            }}>Restore from backup</button>
+            <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleFileSelect} style={{display:'none'}} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Toast({msg}){
+  if(!msg) return null;
+  return (
+    <div style={{
+      position:'fixed', bottom:90, left:'50%', transform:'translateX(-50%)',
+      background: msg.kind==='bad' ? 'var(--bad)' : 'var(--good)',
+      color:'#fff', padding:'10px 18px', borderRadius:99, fontSize:14, fontWeight:600,
+      boxShadow:'0 8px 20px rgba(0,0,0,0.3)', zIndex:50, maxWidth:'85%', textAlign:'center'
+    }}>{msg.text}</div>
+  );
+}
+
+function TabBar({tab,setTab}){
+  const tabs = [
+    {key:'sales', label:'Sale'},
+    {key:'history', label:'History'},
+    {key:'stock', label:'Stock'},
+    {key:'newstock', label:'Buy'},
+    {key:'expenses', label:'Expense'},
+    {key:'loss', label:'Loss'},
+    {key:'ledger', label:'Owed'},
+    {key:'hr', label:'Staff'},
+    {key:'health', label:'Health'},
+  ];
+  return (
+    <div className="no-print" style={{
+      position:'fixed', bottom:0, left:0, right:0, maxWidth:480, margin:'0 auto',
+      display:'flex', overflowX:'auto', background:'var(--bg-raised)', borderTop:'1px solid var(--line)',
+      paddingBottom:'env(safe-area-inset-bottom)', WebkitOverflowScrolling:'touch'
+    }}>
+      {tabs.map(t=>(
+        <button key={t.key} onClick={()=>setTab(t.key)} style={{
+          flex:'1 0 60px', padding:'12px 4px 10px', background:'none', border:'none',
+          color: tab===t.key ? 'var(--accent)' : 'var(--concrete-light)',
+          fontWeight: tab===t.key ? 700:500, fontSize:10.5, cursor:'pointer', whiteSpace:'nowrap',
+          fontFamily:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif"
+        }}>{t.label}</button>
+
+      ))}
+    </div>
+  );
+}
+
+function App(){
+  const [state,setState] = useState(null);
+  const [tab,setTab] = useState('sales');
+  const [toastMsg,setToastMsg] = useState(null);
+  const [showBackup,setShowBackup] = useState(false);
+
+  useEffect(()=>{
+    (async ()=>{
+      const loaded = await loadState();
+      setState(loaded || initialState());
+    })();
+  },[]);
+
+  function toast(text,kind){
+    setToastMsg({text,kind});
+    setTimeout(()=>setToastMsg(null), 2200);
+  }
+
+  if(!state){
+    return <div style={{padding:40,textAlign:'center',color:'var(--concrete-light)'}}>Loading…</div>;
+  }
+
+  return (
+    <React.Fragment>
+      <TopBar tab={tab} onBackupClick={()=>setShowBackup(true)} />
+      {tab==='sales' && <SalesTab state={state} setState={setState} toast={toast} />}
+      {tab==='history' && <HistoryTab state={state} setState={setState} toast={toast} />}
+      {tab==='stock' && <StockTab state={state} setState={setState} toast={toast} />}
+      {tab==='newstock' && <NewstockTab state={state} setState={setState} toast={toast} />}
+      {tab==='expenses' && <ExpensesTab state={state} setState={setState} toast={toast} />}
+      {tab==='loss' && <DamageLossTab state={state} setState={setState} toast={toast} />}
+      {tab==='ledger' && <LedgerTab state={state} setState={setState} toast={toast} />}
+      {tab==='hr' && <HRTab state={state} setState={setState} toast={toast} />}
+      {tab==='health' && <HealthTab state={state} setState={setState} toast={toast} />}
+      {showBackup && <BackupPanel state={state} setState={setState} toast={toast} onClose={()=>setShowBackup(false)} />}
+      <Toast msg={toastMsg} />
+      <TabBar tab={tab} setTab={setTab} />
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
